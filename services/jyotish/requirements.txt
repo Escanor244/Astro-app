@@ -1,0 +1,8 @@
+skyfield>=1.49
+numpy>=1.24
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+timezonefinder>=6.5
+tzdata>=2024.2
+PyYAML>=6.0

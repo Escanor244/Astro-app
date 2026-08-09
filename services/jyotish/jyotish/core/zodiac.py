@@ -1,0 +1,180 @@
+"""Rasi, nakshatra and graha reference data, with the Tamil lexicon.
+
+Tamil names are first-class here, not a translation layer bolted on later. The
+app is Tamil-native by design, so every term carries `ta` (Tamil script),
+`ta_latin` (romanised, for search and for users who read Tamil phonetically but
+not the script) and `en`.
+
+Boundary arithmetic note: a rasi is exactly 30 degrees, a nakshatra exactly
+13 degrees 20 minutes (800 arcminutes), and a pada exactly 3 degrees 20 minutes.
+These are exact rational divisions of the circle, so we compute indices by
+division rather than by table lookup against float boundaries.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import NamedTuple
+
+from .angles import norm360
+
+RASI_SPAN = 30.0
+NAKSHATRA_SPAN = 360.0 / 27.0  # 13 deg 20 min exactly
+PADA_SPAN = NAKSHATRA_SPAN / 4.0  # 3 deg 20 min exactly
+
+
+@dataclass(frozen=True)
+class Term:
+    """A Jyotish term in English, Tamil script, and romanised Tamil."""
+
+    en: str
+    ta: str
+    ta_latin: str
+
+    def label(self, lang: str = "en") -> str:
+        return {"en": self.en, "ta": self.ta, "ta_latin": self.ta_latin}.get(lang, self.en)
+
+
+# --- Grahas -----------------------------------------------------------------
+# Ordered by the traditional sequence (Sun through Saturn, then the chaya
+# grahas Rahu and Ketu).
+
+SUN, MOON, MARS, MERCURY, JUPITER, VENUS, SATURN, RAHU, KETU = range(9)
+
+GRAHAS: tuple[Term, ...] = (
+    Term("Sun", "சூரியன்", "Suriyan"),
+    Term("Moon", "சந்திரன்", "Chandran"),
+    Term("Mars", "செவ்வாய்", "Sevvai"),
+    Term("Mercury", "புதன்", "Budhan"),
+    Term("Jupiter", "குரு", "Guru"),
+    Term("Venus", "சுக்கிரன்", "Sukkiran"),
+    Term("Saturn", "சனி", "Sani"),
+    Term("Rahu", "ராகு", "Raagu"),
+    Term("Ketu", "கேது", "Kethu"),
+)
+
+# Sanskrit forms, used by classical rule citations where the source text names
+# the graha in Sanskrit.
+GRAHA_SANSKRIT: tuple[str, ...] = (
+    "Surya", "Chandra", "Mangala", "Budha", "Guru", "Shukra", "Shani", "Rahu", "Ketu",
+)
+
+
+# --- Rasis ------------------------------------------------------------------
+
+RASIS: tuple[Term, ...] = (
+    Term("Aries", "மேஷம்", "Mesham"),
+    Term("Taurus", "ரிஷபம்", "Rishabam"),
+    Term("Gemini", "மிதுனம்", "Mithunam"),
+    Term("Cancer", "கடகம்", "Kadagam"),
+    Term("Leo", "சிம்மம்", "Simmam"),
+    Term("Virgo", "கன்னி", "Kanni"),
+    Term("Libra", "துலாம்", "Thulam"),
+    Term("Scorpio", "விருச்சிகம்", "Viruchigam"),
+    Term("Sagittarius", "தனுசு", "Dhanusu"),
+    Term("Capricorn", "மகரம்", "Magaram"),
+    Term("Aquarius", "கும்பம்", "Kumbam"),
+    Term("Pisces", "மீனம்", "Meenam"),
+)
+
+RASI_SANSKRIT: tuple[str, ...] = (
+    "Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya",
+    "Tula", "Vrischika", "Dhanu", "Makara", "Kumbha", "Meena",
+)
+
+#: Rasi lord (graha index) for each of the 12 rasis.
+RASI_LORDS: tuple[int, ...] = (
+    MARS, VENUS, MERCURY, MOON, SUN, MERCURY,
+    VENUS, MARS, JUPITER, SATURN, SATURN, JUPITER,
+)
+
+
+# --- Nakshatras -------------------------------------------------------------
+
+NAKSHATRAS: tuple[Term, ...] = (
+    Term("Ashwini", "அசுவினி", "Aswini"),
+    Term("Bharani", "பரணி", "Bharani"),
+    Term("Krittika", "கிருத்திகை", "Krithigai"),
+    Term("Rohini", "ரோகிணி", "Rohini"),
+    Term("Mrigashira", "மிருகசீரிடம்", "Mirugasirisham"),
+    Term("Ardra", "திருவாதிரை", "Thiruvathirai"),
+    Term("Punarvasu", "புனர்பூசம்", "Punarpoosam"),
+    Term("Pushya", "பூசம்", "Poosam"),
+    Term("Ashlesha", "ஆயில்யம்", "Ayilyam"),
+    Term("Magha", "மகம்", "Magam"),
+    Term("Purva Phalguni", "பூரம்", "Pooram"),
+    Term("Uttara Phalguni", "உத்திரம்", "Uthiram"),
+    Term("Hasta", "அஸ்தம்", "Astham"),
+    Term("Chitra", "சித்திரை", "Chithirai"),
+    Term("Swati", "சுவாதி", "Swathi"),
+    Term("Vishakha", "விசாகம்", "Visakam"),
+    Term("Anuradha", "அனுஷம்", "Anusham"),
+    Term("Jyeshtha", "கேட்டை", "Kettai"),
+    Term("Mula", "மூலம்", "Moolam"),
+    Term("Purva Ashadha", "பூராடம்", "Pooradam"),
+    Term("Uttara Ashadha", "உத்திராடம்", "Uthiradam"),
+    Term("Shravana", "திருவோணம்", "Thiruvonam"),
+    Term("Dhanishta", "அவிட்டம்", "Avittam"),
+    Term("Shatabhisha", "சதயம்", "Sadhayam"),
+    Term("Purva Bhadrapada", "பூரட்டாதி", "Poorattathi"),
+    Term("Uttara Bhadrapada", "உத்திரட்டாதி", "Uthirattathi"),
+    Term("Revati", "ரேவதி", "Revathi"),
+)
+
+#: Vimshottari dasha lord of each nakshatra. The 9-graha cycle repeats three
+#: times across the 27 nakshatras. This same sequence drives KP star lords.
+NAKSHATRA_LORDS: tuple[int, ...] = (
+    KETU, VENUS, SUN, MOON, MARS, RAHU, JUPITER, SATURN, MERCURY,
+) * 3
+
+
+class ZodiacPosition(NamedTuple):
+    """Where a longitude falls in the sidereal zodiac."""
+
+    longitude: float       # absolute sidereal longitude, [0, 360)
+    rasi: int              # 0-11
+    degrees_in_rasi: float # [0, 30)
+    nakshatra: int         # 0-26
+    pada: int              # 1-4
+    nakshatra_lord: int    # graha index
+
+    @property
+    def rasi_term(self) -> Term:
+        return RASIS[self.rasi]
+
+    @property
+    def nakshatra_term(self) -> Term:
+        return NAKSHATRAS[self.nakshatra]
+
+    @property
+    def rasi_lord(self) -> int:
+        return RASI_LORDS[self.rasi]
+
+
+def resolve(longitude: float) -> ZodiacPosition:
+    """Decompose a sidereal longitude into rasi, nakshatra and pada.
+
+    The pada is what most consumer apps get wrong near boundaries, and it is the
+    first thing a practising astrologer checks. Because nakshatra and pada spans
+    are exact divisions of 360, integer division of the normalised longitude is
+    both correct and boundary-safe.
+    """
+    lon = norm360(longitude)
+
+    rasi = int(lon // RASI_SPAN)
+    nak = int(lon // NAKSHATRA_SPAN)
+    pada = int((lon % NAKSHATRA_SPAN) // PADA_SPAN) + 1
+
+    # Defensive clamps: only reachable if lon is a hair under 360 after fmod.
+    rasi = min(rasi, 11)
+    nak = min(nak, 26)
+    pada = min(pada, 4)
+
+    return ZodiacPosition(
+        longitude=lon,
+        rasi=rasi,
+        degrees_in_rasi=lon - rasi * RASI_SPAN,
+        nakshatra=nak,
+        pada=pada,
+        nakshatra_lord=NAKSHATRA_LORDS[nak],
+    )
