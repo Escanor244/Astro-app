@@ -77,6 +77,13 @@ FIXTURES = [
     ("dubai-2018",          datetime(2018, 12, 25, 13, 45), 25.2048,  55.2708, "Asia/Dubai"),
     # High latitude: the ascendant is most sensitive here.
     ("oslo-1994",           datetime(1994, 6, 21, 0, 30),   59.9139,  10.7522, "Europe/Oslo"),
+    # Above the Arctic Circle (66.56 N). The ecliptic meets the horizon at two
+    # antipodal points and atan2 alone cannot tell rising from setting; below
+    # this latitude it happens to pick the right one, so nothing here was
+    # covered until the lagna came back as the DESCENDANT for Tromso.
+    ("tromso-1985",         datetime(1985, 1, 14, 8, 10),   69.6492,  18.9553, "Europe/Oslo"),
+    ("murmansk-1990",       datetime(1990, 12, 2, 11, 0),   68.9585,  33.0827, "Europe/Moscow"),
+    ("mcmurdo-2010",        datetime(2010, 3, 3, 15, 0),   -77.8419, 166.6863, "Pacific/Auckland"),
 ]
 
 
@@ -97,7 +104,13 @@ def _swisseph_reference(bd: BirthData):
     longitudes[7] = swe.calc_ut(jd, swe.MEAN_NODE, flags)[0][0]
     longitudes[8] = (longitudes[7] + 180.0) % 360.0
 
-    _cusps, ascmc = swe.houses_ex(jd, bd.latitude, bd.longitude, b"P", swe.FLG_SIDEREAL)
+    # Equal houses, not Placidus. We only read ascmc[0], the ascendant, which is
+    # a property of the horizon and identical under every house system -- but
+    # Placidus is mathematically undefined above the polar circles and swisseph
+    # raises rather than degrading, which would make the Arctic fixtures
+    # untestable. test_equal_and_placidus_give_the_same_ascendant pins the
+    # equivalence at ordinary latitudes.
+    _cusps, ascmc = swe.houses_ex(jd, bd.latitude, bd.longitude, b"E", swe.FLG_SIDEREAL)
     return longitudes, ascmc[0]
 
 
@@ -112,6 +125,32 @@ def case(request):
     chart = pos.compute(bd, ay.Ayanamsa.LAHIRI)
     reference, ref_asc = _swisseph_reference(bd)
     return label, chart, reference, ref_asc
+
+
+def test_equal_and_placidus_give_the_same_ascendant() -> None:
+    """The ascendant does not depend on the house system.
+
+    Justifies reading it from equal houses above, which is what lets the Arctic
+    fixtures be tested at all. Checked at latitudes where Placidus is defined.
+    """
+    for lat, lon in [(13.0827, 80.2707), (51.5074, -0.1278), (-33.8688, 151.2093)]:
+        jd = swe.julday(1990, 5, 15, 1.0)
+        swe.set_sid_mode(swe.SIDM_LAHIRI, 0, 0)
+        _c, placidus = swe.houses_ex(jd, lat, lon, b"P", swe.FLG_SIDEREAL)
+        _c, equal = swe.houses_ex(jd, lat, lon, b"E", swe.FLG_SIDEREAL)
+        assert _sep_arcsec(placidus[0], equal[0]) < 0.001, f"at {lat}, {lon}"
+
+
+def test_placidus_is_undefined_above_the_polar_circle() -> None:
+    """Documents *why* the oracle uses equal houses.
+
+    If a future swisseph starts returning something here instead of raising,
+    this test fails and the choice above can be revisited.
+    """
+    swe.set_sid_mode(swe.SIDM_LAHIRI, 0, 0)
+    with pytest.raises(swe.Error):
+        swe.houses_ex(swe.julday(1985, 1, 14, 7.0), 69.6492, 18.9553,
+                      b"P", swe.FLG_SIDEREAL)
 
 
 def test_oracle_backend_is_declared() -> None:
@@ -207,6 +246,77 @@ def test_aware_datetime_is_rejected() -> None:
             when=datetime(1990, 5, 15, 6, 30, tzinfo=timezone.utc),
             latitude=13.0827, longitude=80.2707,
         )
+
+
+def test_lagna_is_actually_rising(case) -> None:
+    """The lagna must be *ascending*, checked against physics not the oracle.
+
+    A rising point sits on the horizon with its altitude increasing; the setting
+    point sits on the horizon with altitude decreasing. Computing the altitude a
+    minute later separates them with no reference implementation involved, which
+    matters because this is the failure the oracle comparison would also have to
+    catch to be trusted.
+    """
+    import math
+    from datetime import timedelta
+
+    _label, chart, _reference, _ref_asc = case
+    birth = chart.birth
+
+    def altitude(minutes: float) -> float:
+        later = BirthData(
+            when=birth.when + timedelta(minutes=minutes),
+            latitude=birth.latitude, longitude=birth.longitude,
+            timezone_name=birth.timezone_name,
+        )
+        t = later.skyfield_time()
+        # Back to tropical of date, then to horizon coordinates.
+        lam = math.radians(chart.lagna.longitude + ay.compute(t, ay.Ayanamsa.LAHIRI))
+        eps = math.radians(pos.true_obliquity(t))
+        phi = math.radians(birth.latitude)
+        theta = math.radians((t.gast * 15.0 + birth.longitude) % 360.0)
+        ra = math.atan2(math.sin(lam) * math.cos(eps), math.cos(lam))
+        dec = math.asin(math.sin(eps) * math.sin(lam))
+        return math.degrees(math.asin(
+            math.sin(phi) * math.sin(dec)
+            + math.cos(phi) * math.cos(dec) * math.cos(theta - ra)
+        ))
+
+    now, soon = altitude(0.0), altitude(1.0)
+    assert abs(now) < 0.02, f"lagna is not on the horizon: altitude {now:.4f} deg"
+    assert soon > now, (
+        f"lagna is SETTING, not rising (altitude {now:.4f} -> {soon:.4f}); "
+        "this is the descendant"
+    )
+
+
+def test_retrogradation_matches_the_oracle(case) -> None:
+    """Direction of motion, asserted against an independent source.
+
+    Previously the only test touching retrogradation built its expectation by
+    reading the flags off the very chart it compared against. Inverting every
+    flag -- making Rahu and Ketu direct, which the mean node can never be --
+    left the whole suite green.
+    """
+    label, chart, _reference, _ref_asc = case
+    u = chart.birth.utc
+    jd = swe.julday(
+        u.year, u.month, u.day,
+        u.hour + u.minute / 60.0 + u.second / 3600.0 + u.microsecond / 3.6e9,
+    )
+    swe.set_sid_mode(swe.SIDM_LAHIRI, 0, 0)
+    flags = swe.FLG_SWIEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
+
+    for gi, name in SWE_BODY.items():
+        speed = swe.calc_ut(jd, getattr(swe, name), flags)[0][3]
+        assert chart.grahas[gi].retrograde == (speed < 0.0), (
+            f"{label} {chart.grahas[gi].name}: ours "
+            f"{'R' if chart.grahas[gi].retrograde else 'D'}, "
+            f"swisseph speed {speed:+.5f} deg/day"
+        )
+
+    # The mean node only ever moves backwards.
+    assert chart.grahas[7].retrograde and chart.grahas[8].retrograde
 
 
 def test_ketu_is_exactly_opposite_rahu(case) -> None:

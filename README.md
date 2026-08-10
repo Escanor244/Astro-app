@@ -106,12 +106,13 @@ With the venv activated (see [Quick start](#quick-start)):
 python -m pytest tests\ -q
 ```
 
-267 tests, about 30 seconds. These are not smoke tests — they compare every
+441 tests, about 10 seconds. These are not smoke tests — they compare every
 graha longitude, the lagna, and every nakshatra pada against an independent
-Swiss Ephemeris oracle across 20 birth charts, and cross-check all sixteen
-divisional charts against a second implementation. **If these fail, do not
-ship.** The target audience includes practising astrologers, for whom one wrong
-pada is disqualifying.
+Swiss Ephemeris oracle across 23 birth charts, cross-check all sixteen
+divisional charts against a second implementation, and verify the lagna is
+genuinely *rising* by computing its altitude a minute later rather than trusting
+any reference. **If these fail, do not ship.** The target audience includes
+practising astrologers, for whom one wrong pada is disqualifying.
 
 **[docs/testing/](docs/testing/)** holds a testing guide per phase — what the
 tolerances mean, manual checklists, and how to cross-check against Jagannatha

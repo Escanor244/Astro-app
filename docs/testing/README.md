@@ -29,7 +29,12 @@ From `services/jyotish`, with the virtualenv activated:
 python -m pytest tests\ -q
 ```
 
-**267 tests, about 30 seconds.** Every phase's automated tests live in the same
+**441 tests, about 10 seconds.** Every phase's automated tests live in the same
 suite and all of them must pass — a later phase is never allowed to break an
 earlier one. The Phase 0 accuracy gate in particular is load-bearing: if those
 fail, nothing built on top of them can be trusted.
+
+There should be **zero skips**. A skipped test is a test that is not protecting
+you: `jyotishganit` once went undeclared, and the resulting module-level skip
+quietly removed 73 varga tests while the suite still reported success. `-ra` is
+on by default so skips can never be invisible again.

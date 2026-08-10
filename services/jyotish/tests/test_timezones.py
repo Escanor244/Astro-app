@@ -139,6 +139,43 @@ def test_dst_is_annotated_for_diaspora_births() -> None:
     assert "daylight saving" in (birth.offset_note or "")
 
 
+def test_negative_dst_zone_is_not_labelled_backwards() -> None:
+    """Europe/Dublin models winter as *negative* daylight saving.
+
+    A sign-blind `if dst:` fired for every Irish winter birth since 1968, stayed
+    silent all summer, and rendered the magnitude as the impossible "+-60 min".
+    """
+    winter = _at(datetime(1985, 1, 20, 7, 15), "Europe/Dublin", lat=53.35, lon=-6.26)
+    note = winter.offset_note or ""
+    assert "+-" not in note, f"malformed sign in {note!r}"
+    assert "daylight saving in force" not in note, (
+        f"January in Dublin is not summer time: {note!r}"
+    )
+    assert winter.utc_offset == timedelta(0)
+
+
+def test_negative_dst_zone_summer_is_the_offset_one() -> None:
+    summer = _at(datetime(1985, 7, 20, 7, 15), "Europe/Dublin", lat=53.35, lon=-6.26)
+    assert summer.utc_offset == timedelta(hours=1)
+
+
+@pytest.mark.parametrize(
+    "zone,when,lat,lon",
+    [
+        ("Europe/Dublin", datetime(1985, 1, 20, 7, 15), 53.35, -6.26),
+        ("Europe/London", datetime(1988, 7, 21, 3, 45), 51.5074, -0.1278),
+        ("Asia/Kolkata", datetime(1943, 3, 12, 11, 20), 13.0827, 80.2707),
+        ("Asia/Kolkata", datetime(1899, 6, 7, 9, 30), 13.0827, 80.2707),
+        ("America/New_York", datetime(2010, 7, 4, 12, 0), 40.71, -74.0),
+    ],
+)
+def test_offset_note_never_renders_a_malformed_sign(
+    zone: str, when: datetime, lat: float, lon: float
+) -> None:
+    note = _at(when, zone, lat=lat, lon=lon).offset_note or ""
+    assert "+-" not in note and "-+" not in note, note
+
+
 # --- birth time entry -------------------------------------------------------
 #
 # Twelve hours of error moves the ascendant by roughly 180 degrees, so an

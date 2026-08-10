@@ -33,6 +33,13 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+# Put services/jyotish on the path so the folding rule can be imported rather
+# than duplicated. The builder and the query path MUST fold identically -- any
+# divergence would silently stop matching, with nothing to indicate why.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from jyotish.core.places import SCHEMA_VERSION, fold_name  # noqa: E402
+
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 CACHE_DIR = DATA_DIR / "geonames_cache"
 DB_PATH = DATA_DIR / "places.sqlite"
@@ -199,10 +206,13 @@ def build(places: dict[int, list], alt: dict[int, set[str]],
         CREATE TABLE place_names (
             geonameid INTEGER NOT NULL,
             name      TEXT NOT NULL,
-            name_key  TEXT NOT NULL      -- lowercased; identity for Tamil
+            name_key  TEXT NOT NULL      -- folded; identity for Tamil
         );
+
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """
     )
+    con.execute("INSERT INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
 
     rows = []
     name_rows = []
@@ -210,13 +220,24 @@ def build(places: dict[int, list], alt: dict[int, set[str]],
         (_gid, name, ascii_name, cc, admin1_code, lat, lon, tz, pop, fcode) = r
         admin1_name = admin1.get(f"{cc}.{admin1_code}", "")
 
+        search_key = fold_name(ascii_name)
         rows.append((
             gid, name, ascii_name, admin1_name, cc, countries.get(cc, cc),
-            lat, lon, tz, pop, fcode, ascii_name.lower(),
+            lat, lon, tz, pop, fcode, search_key,
         ))
-        for alt_name in alt.get(gid, ()):  # already Tamil/English only
-            if alt_name.lower() != ascii_name.lower():
-                name_rows.append((gid, alt_name, alt_name.lower()))
+
+        # Index the *displayed* name too, folded. Without this a user cannot
+        # find a place by the name the app just printed: search_key comes from
+        # ascii_name ("Hosur"), while display_name renders name ("Hosūr").
+        # GeoNames also romanises rather than transliterating in places --
+        # "Zürich" has ascii_name "Zuerich" -- so that city matched neither
+        # spelling until its folded name was indexed.
+        variants: dict[str, str] = {}
+        for variant in (name, *alt.get(gid, ())):  # alternates are Tamil/English
+            key = fold_name(variant)
+            if key and key != search_key:
+                variants.setdefault(key, variant)
+        name_rows.extend((gid, variant, key) for key, variant in variants.items())
 
     con.executemany("INSERT INTO places VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     con.executemany("INSERT INTO place_names VALUES (?,?,?)", name_rows)

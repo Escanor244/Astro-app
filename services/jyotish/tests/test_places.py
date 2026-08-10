@@ -97,6 +97,74 @@ def test_unpopulated_village_still_findable() -> None:
     assert results and results[0].name == "Maduravoyal"
 
 
+# --- diacritics -------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "raw,folded",
+    [
+        ("Hosūr", "hosur"),
+        ("Zürich", "zurich"),
+        ("São Paulo", "sao paulo"),
+        ("Kāraikudi", "karaikudi"),
+        ("Bogotá", "bogota"),
+        ("MADURAI", "madurai"),
+    ],
+)
+def test_fold_name_strips_latin_diacritics(raw: str, folded: str) -> None:
+    assert places.fold_name(raw) == folded
+
+
+@pytest.mark.parametrize("tamil", ["மதுரை", "சென்னை", "கோயம்புத்தூர்", "திருச்சிராப்பள்ளி"])
+def test_fold_name_leaves_tamil_untouched(tamil: str) -> None:
+    """Tamil vowel signs are Unicode combining marks too.
+
+    மதுரை is ம + த + vowel-sign-U + ர + vowel-sign-AI. Stripping combining
+    characters after NFD -- the obvious way to remove accents -- would turn it
+    into மதரை, a different word. Only marks over ASCII letters may be dropped.
+    """
+    assert places.fold_name(tamil) == tamil
+
+
+@pytest.mark.parametrize(
+    "query", ["Hosur", "Madurai", "Karaikudi", "Thanjavur", "Kumbakonam", "Salem"]
+)
+def test_displayed_name_can_be_searched_back(query: str) -> None:
+    """search(search(q)[0].name) must find the same place.
+
+    It did not: search_key came from GeoNames' ascii_name ("Hosur") while
+    display_name renders the name column ("Hosūr"), so pasting back what the app
+    had just printed returned nothing for most of Tamil Nadu.
+    """
+    first = places.search(query, limit=1)
+    assert first, f"no result for {query!r}"
+    again = places.search(first[0].name, limit=1)
+    assert again, f"{first[0].name!r} (as displayed) is not findable"
+    assert again[0].geonameid == first[0].geonameid
+
+
+@pytest.mark.parametrize(
+    "accented,plain",
+    [("Zürich", "Zurich"), ("São Paulo", "Sao Paulo"), ("Málaga", "Malaga"),
+     ("Bogotá", "Bogota")],
+)
+def test_both_spellings_find_the_same_city(accented: str, plain: str) -> None:
+    """GeoNames romanises rather than transliterating in places -- Zürich's
+    ascii_name is "Zuerich" -- so it previously matched *neither* spelling."""
+    a = places.search(accented, limit=1)
+    b = places.search(plain, limit=1)
+    assert a and b, f"{accented!r} -> {len(a)}, {plain!r} -> {len(b)}"
+    assert a[0].geonameid == b[0].geonameid
+
+
+def test_schema_version_is_enforced() -> None:
+    """A stale index must fail loudly rather than quietly stop matching names."""
+    row = places._connect().execute(
+        "SELECT value FROM meta WHERE key = 'schema_version'"
+    ).fetchone()
+    assert row is not None, "index has no schema_version; rebuild it"
+    assert int(row[0]) == places.SCHEMA_VERSION
+
+
 def test_london_uk_before_london_ontario() -> None:
     assert places.search("London", limit=5)[0].country_code == "GB"
 

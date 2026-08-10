@@ -171,9 +171,16 @@ class BirthData:
             label = aware.tzname() or "local mean time"
             return f"{label}, local mean time before standard zones were adopted"
 
+        # Branch on the sign, not on truthiness. Seventeen IANA zones model
+        # *negative* DST -- Europe/Dublin keeps standard time in summer and
+        # applies -1h in winter -- so `if dst:` fired for every Irish winter
+        # birth since 1968, stayed silent in summer, and rendered the magnitude
+        # as the impossible "+-60 min".
         dst = aware.dst() or timedelta(0)
-        if dst:
-            return f"daylight saving in force (+{int(dst.total_seconds() // 60)} min)"
+        if dst > timedelta(0):
+            return f"daylight saving in force ({int(dst.total_seconds() // 60):+d} min)"
+        if dst < timedelta(0):
+            return f"winter time; this zone applies negative daylight saving ({int(dst.total_seconds() // 60):+d} min)"
         return None
 
     @classmethod

@@ -7,3 +7,13 @@ pytest-cov>=5.0
 # to cross-check our Skyfield engine. It is never imported by shipped code and
 # never distributed. See docs/00-orientation.md for why this separation matters.
 pyswisseph>=2.10.3.2
+
+# Dev-only cross-check for the divisional charts (MIT). tests/test_vargas.py
+# compares our varga rules against this independent implementation.
+#
+# This MUST stay declared. When it was missing, `pytest.importorskip` at module
+# scope silently dropped all 73 varga tests — including the ~50 that never touch
+# it — into a single SKIPPED line that `-q` did not print. Reintroducing the
+# navamsa boundary bug then gave "194 passed, exit 0": the headline Navamsam
+# chart was protected only by an undeclared optional dependency.
+jyotishganit>=0.1.3

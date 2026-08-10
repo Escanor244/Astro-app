@@ -155,19 +155,37 @@ def ascendant(t, latitude: float, longitude: float, ayanamsa_deg: float) -> floa
     sidereal time and mean obliquity does *not* work either: the obliquity
     enters the geometry itself, not just as an additive longitude term, which
     leaves a few arcseconds of residual.
+
+    The meridian correction is the third necessary step. The ecliptic crosses
+    the horizon at *two* antipodal points -- one rising, one setting -- and
+    atan2 alone cannot distinguish them. Below the polar circles the branch it
+    happens to pick is the rising one, so the bug is invisible; above about
+    66.56 degrees it silently returns the DESCENDANT, putting every bhava six
+    houses out while leaving graha longitudes untouched, so nothing looks wrong.
+    The rising point is the one that follows the MC within half a circle, which
+    is the rule Swiss Ephemeris applies.
     """
     # Greenwich apparent sidereal time (hours) -> local, in degrees.
     theta = math.radians(norm360(t.gast * 15.0 + longitude))
     eps = math.radians(true_obliquity(t))
     phi = math.radians(latitude)
 
-    # Guard the poles, where tan(phi) diverges and no ecliptic point rises.
+    # Guard the geographic poles, where tan(phi) diverges.
     if abs(latitude) > 89.9:
         phi = math.radians(math.copysign(89.9, latitude))
 
-    asc_true_frame = math.degrees(
+    asc_true_frame = norm360(math.degrees(
         math.atan2(math.cos(theta), -(math.sin(theta) * math.cos(eps) + math.tan(phi) * math.sin(eps)))
-    )
+    ))
+
+    # Midheaven, in the same frame: where the meridian meets the ecliptic.
+    mc = norm360(math.degrees(math.atan2(math.sin(theta), math.cos(theta) * math.cos(eps))))
+
+    # Keep the ascendant in the semicircle rising after the MC. A no-op at every
+    # latitude the app is likely to see; the difference only appears near and
+    # beyond the polar circles.
+    if norm360(asc_true_frame - mc) >= 180.0:
+        asc_true_frame = norm360(asc_true_frame + 180.0)
 
     # Step 2: true equinox -> mean equinox, to match the ayanamsa's frame.
     dpsi_deg = iau2000b(t.tt)[0] / 1e7 / 3600.0

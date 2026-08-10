@@ -130,6 +130,14 @@ def resolve_place(query: str, pick: int | None):
 
 
 def main() -> None:
+    # Tamil is printed unconditionally, but a redirected stdout on Windows
+    # defaults to the ANSI code page (cp1252 here), which cannot encode it. That
+    # made `chart.py ... > chart.txt` die with UnicodeEncodeError after six
+    # lines and leave a truncated file -- precisely the redirect-and-diff
+    # workflow this script exists to support.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     p = argparse.ArgumentParser(description="Cast a Vedic jathagam.")
     p.add_argument("--date", required=True, help="local birth date, YYYY-MM-DD")
     p.add_argument("--time", required=True,

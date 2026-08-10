@@ -155,15 +155,22 @@ def resolve(longitude: float) -> ZodiacPosition:
     """Decompose a sidereal longitude into rasi, nakshatra and pada.
 
     The pada is what most consumer apps get wrong near boundaries, and it is the
-    first thing a practising astrologer checks. Because nakshatra and pada spans
-    are exact divisions of 360, integer division of the normalised longitude is
-    both correct and boundary-safe.
+    first thing a practising astrologer checks.
+
+    Multiply before dividing. 360/27 and 360/108 are not binary-representable
+    and both round *up*, so ``lon // PADA_SPAN`` puts a boundary value in the
+    *previous* bucket: ``resolve(120.0)`` returned Ashlesha pada 4 instead of
+    Magha pada 1. Worse, ``rasi`` divides by the exactly-representable 30.0 and
+    stayed right, so the record read "Leo + Ashlesha" -- a pairing that cannot
+    exist. Counting in whole parts of the circle (108 padas, 27 nakshatras)
+    keeps both operands exact. This is the same trap, and the same fix, as
+    :func:`jyotish.charts.vargas._split`.
     """
     lon = norm360(longitude)
 
-    rasi = int(lon // RASI_SPAN)
-    nak = int(lon // NAKSHATRA_SPAN)
-    pada = int((lon % NAKSHATRA_SPAN) // PADA_SPAN) + 1
+    rasi = int(lon * 12.0 / 360.0)
+    nak = int(lon * 27.0 / 360.0)
+    pada = int(lon * 108.0 / 360.0) % 4 + 1
 
     # Defensive clamps: only reachable if lon is a hair under 360 after fmod.
     rasi = min(rasi, 11)

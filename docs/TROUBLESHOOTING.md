@@ -20,7 +20,8 @@ not activated.**
 | `... was unexpected at this time` | You pasted the `(.venv) C:\...>` prompt prefix along with the command. Copy only the part after `>`. |
 | `PlacesDatabaseMissing` when using `--place` | Place index not built: `python scripts\build_places_db.py`. |
 | `tests/test_places.py` all skipped | Same as above. Expected on a fresh clone. |
-| Tamil script prints as `?????` | Console encoding. `set PYTHONIOENCODING=utf-8`, or use Windows Terminal. Does not affect correctness. |
+| Tamil script prints as `?????` | Console font, not encoding. Use Windows Terminal. Does not affect correctness. |
+| `UnicodeEncodeError` when redirecting output | Fixed — `chart.py` now forces UTF-8 on stdout. Earlier versions died mid-chart on `chart.py ... > out.txt` and left a truncated file. If you see this, you are on an old build. |
 
 ### Activating the virtualenv
 

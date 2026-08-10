@@ -20,10 +20,20 @@ from jyotish.core import positions as pos
 from jyotish.core.birthdata import BirthData
 from jyotish.core.zodiac import RASI_SPAN
 
-jg = pytest.importorskip(
-    "jyotishganit.components.divisional_charts",
-    reason="cross-validation reference",
-)
+@pytest.fixture(scope="module")
+def jg():
+    """The independent implementation we cross-check against.
+
+    Deliberately a fixture rather than a module-level ``importorskip``. At module
+    scope, a missing jyotishganit silently skipped *all* 73 tests in this file --
+    including the ~50 that never consult it -- so the navamsa boundary bug could
+    be reintroduced and the suite would still report success. Only the two tests
+    that actually need the reference may skip.
+    """
+    return pytest.importorskip(
+        "jyotishganit.components.divisional_charts",
+        reason="cross-validation reference; declared in requirements-dev.txt",
+    )
 
 JG_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
             "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -56,7 +66,7 @@ STEPS = [0.0, 0.01, 0.7, 1.3, 2.4, 3.3, 10 / 3, 3.34, 5.0, 5.01, 7.4, 7.5,
          25.0, 27.5, 29.99]
 
 
-def _theirs(func_name: str, rasi: int, degrees: float) -> int:
+def _theirs(jg, func_name: str, rasi: int, degrees: float) -> int:
     _num, sign_str, _deg = getattr(jg, func_name)(JG_SIGNS[rasi], degrees)
     return JG_SIGNS.index(sign_str)
 
@@ -79,10 +89,10 @@ def _sample_points():
 
 
 @pytest.mark.parametrize("code", sorted(CROSS_CHECKED))
-def test_agrees_with_independent_implementation(code: str) -> None:
+def test_agrees_with_independent_implementation(jg, code: str) -> None:
     for rasi, degrees, longitude in _sample_points():
         ours = vargas.varga_rasi(longitude, code)
-        theirs = _theirs(CROSS_CHECKED[code], rasi, degrees)
+        theirs = _theirs(jg, CROSS_CHECKED[code], rasi, degrees)
         assert ours == theirs, (
             f"{code} at rasi {rasi} + {degrees} deg: ours={ours} theirs={theirs}"
         )
@@ -181,7 +191,7 @@ def test_trimsamsa_even_sign(degrees: float, expected: int) -> None:
     assert vargas.varga_rasi(RASI_SPAN + degrees, "D30") == expected  # Taurus
 
 
-def test_trimsamsa_deviation_from_jyotishganit() -> None:
+def test_trimsamsa_deviation_from_jyotishganit(jg) -> None:
     """Pin the one place we knowingly differ from the reference implementation.
 
     jyotishganit puts Saturn at 12-19 and Jupiter at 19-24 in even signs, which
@@ -193,7 +203,7 @@ def test_trimsamsa_deviation_from_jyotishganit() -> None:
     """
     taurus_16 = RASI_SPAN + 16.0
     assert vargas.varga_rasi(taurus_16, "D30") == vargas.PISCES      # Jupiter
-    assert _theirs("trimsamsa_from_long", 1, 16.0) == vargas.CAPRICORN  # Saturn
+    assert _theirs(jg, "trimsamsa_from_long", 1, 16.0) == vargas.CAPRICORN  # Saturn
 
 
 def test_trimsamsa_spans_sum_to_a_full_sign() -> None:
