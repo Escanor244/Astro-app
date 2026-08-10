@@ -136,6 +136,39 @@ export type Birth = {
   offset_note: string | null;
 };
 
+/** செவ்வாய் தோஷம் as inputs, not as an answer.
+ *
+ *  There is deliberately no `present`, no percentage and no marriage verdict —
+ *  three incompatible Tamil house sets are in mainstream use and one
+ *  practitioner's exception list takes 100 flagged charts down to 3, so a
+ *  boolean would report the implementer's choice rather than the chart.
+ *  See docs/dosham-sources.md. Do not add one. */
+export type SevvaiReading = {
+  reference: "lagna" | "moon" | "venus";
+  reference_name: Term;
+  house: number;
+  flagged_by: string[];
+  severe: boolean;
+};
+
+export type SevvaiExemption = {
+  key: string;
+  name: Term;
+  applies: boolean;
+  detail: string;
+  provenance: string;
+};
+
+export type Sevvai = {
+  name: Term;
+  mars_rasi: number;
+  mars_rasi_name: Term;
+  readings: SevvaiReading[];
+  exemptions: SevvaiExemption[];
+  flagged_conventions: string[];
+  house_sets: Record<string, number[]>;
+};
+
 export type Chart = {
   birth: Birth;
   ayanamsa: string;
@@ -150,6 +183,7 @@ export type Chart = {
   badhaka_house: number;
   badhaka_lord: number;
   maraka_lords: number[];
+  sevvai: Sevvai;
   time_warning: string | null;
   /** Only an "ambiguous" time has a second reading to offer. */
   time_warning_kind: "ambiguous" | "nonexistent" | null;

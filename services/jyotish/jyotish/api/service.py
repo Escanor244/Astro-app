@@ -14,6 +14,7 @@ from ..charts import vargas
 from ..core import ayanamsa as ay
 from ..core import bhava
 from ..core import dignity
+from ..core import dosham
 from ..core import drishti
 from ..core import places as places_db
 from ..core import positions as pos
@@ -87,6 +88,41 @@ def format_offset(delta) -> str:
     total = abs(total)
     h, m, s = total // 3600, (total % 3600) // 60, total % 60
     return f"UTC{sign}{h:02d}:{m:02d}" + (f":{s:02d}" if s else "")
+
+
+def sevvai_out(report) -> models.SevvaiOut:
+    """The sevvai report, carried across the wire with its shape intact.
+
+    Note what is not mapped: there is no verdict field to map. The client is
+    given the geometry and the exemptions and does the same thing the engine
+    does -- shows them.
+    """
+    return models.SevvaiOut(
+        name=term(dosham.SEVVAI),
+        mars_rasi=report.mars_rasi,
+        mars_rasi_name=term(RASIS[report.mars_rasi]),
+        readings=[
+            models.SevvaiReadingOut(
+                reference=r.reference.value,
+                reference_name=term(r.reference_name),
+                house=r.house,
+                flagged_by=list(r.flagged_by),
+                severe=r.severe,
+            )
+            for r in report.readings
+        ],
+        exemptions=[
+            models.SevvaiExemptionOut(
+                key=e.key, name=term(e.name), applies=e.applies,
+                detail=e.detail, provenance=e.provenance,
+            )
+            for e in report.exemptions
+        ],
+        flagged_conventions=list(report.flagged_conventions),
+        house_sets={
+            name: sorted(houses) for name, houses in dosham.HOUSE_SETS.items()
+        },
+    )
 
 
 def build_birth(req: models.ChartRequest) -> tuple[BirthData, tuple[int, int, int]]:
@@ -278,6 +314,7 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
         badhaka_house=bhava.badhaka_house(chart.lagna.rasi),
         badhaka_lord=bhava.badhaka_lord(chart.lagna.rasi),
         maraka_lords=list(bhava.maraka_lords(chart.lagna.rasi)),
+        sevvai=sevvai_out(dosham.sevvai(chart)),
         time_warning=warning,
         time_warning_kind=warning_kind,
         engine_version=ENGINE_VERSION,

@@ -206,6 +206,54 @@ class GrahaOut(BaseModel):
     aspects_bhavas: list[int]
 
 
+class SevvaiReadingOut(BaseModel):
+    """Mars's house from one reference point, and which conventions flag it."""
+
+    reference: str = Field(description="lagna | moon | venus")
+    reference_name: TermOut
+    house: int = Field(ge=1, le=12)
+    #: Which named house-set conventions include this house. Reported side by
+    #: side rather than resolved -- they genuinely disagree, and a chart with
+    #: Mars in the lagna is flagged by one and clean under another.
+    flagged_by: list[str]
+    severe: bool
+
+
+class SevvaiExemptionOut(BaseModel):
+    """One cancellation condition, named and attributed rather than totalled."""
+
+    key: str
+    name: TermOut
+    applies: bool
+    detail: str
+    #: How well attested this condition is. They are not equal, and an
+    #: astrologer weighing them needs to see which is which.
+    provenance: str
+
+
+class SevvaiOut(BaseModel):
+    """செவ்வாய் தோஷம் as inputs, not as an answer.
+
+    There is deliberately no `present`, no percentage and no sentence about
+    marriage. Three incompatible Tamil house sets are in mainstream use, four
+    incompatible cancellation stacks disagree on ordinary charts, and one Tamil
+    practitioner's exception list takes a hundred flagged charts down to three.
+    A boolean would report the implementer's choice, not the chart. See
+    docs/dosham-sources.md.
+    """
+
+    name: TermOut
+    mars_rasi: int = Field(ge=0, le=11)
+    mars_rasi_name: TermOut
+    readings: list[SevvaiReadingOut]
+    exemptions: list[SevvaiExemptionOut]
+    #: House-set conventions that flag this chart from at least one reference.
+    #: A count of *conventions*, not a severity.
+    flagged_conventions: list[str]
+    #: The named house sets, so a client can show what each one means.
+    house_sets: dict[str, list[int]]
+
+
 class BhavaOut(BaseModel):
     """One house, as read from the lagna or from the Moon.
 
@@ -286,6 +334,7 @@ class ChartResponse(BaseModel):
     badhaka_house: int = Field(ge=1, le=12)
     badhaka_lord: int = Field(ge=0, le=8)
     maraka_lords: list[int]
+    sevvai: SevvaiOut
     #: Set when the local time is ambiguous or never happened. The UI must show
     #: this prominently: an hour of doubt is about 15 degrees of lagna.
     time_warning: str | None = None

@@ -17,6 +17,7 @@ import { downloadChart } from "@/lib/chart-export";
 import { ChartLibrary } from "@/components/ChartLibrary";
 import { BirthForm, type FormState } from "@/components/BirthForm";
 import { DashaTree } from "@/components/DashaTree";
+import { BhavaPanel } from "@/components/BhavaPanel";
 import { GrahaTable } from "@/components/GrahaTable";
 import { PanchangamPanel } from "@/components/PanchangamPanel";
 import { type Language, SouthIndianChart } from "@/components/SouthIndianChart";
@@ -433,6 +434,11 @@ export default function Home() {
 
               <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <GrahaTable chart={chart} lang={lang} onHover={setHover} />
+              </div>
+
+              {/* Houses, and செவ்வாய் தோஷம் as inputs rather than a verdict. */}
+              <div className="print-chart rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <BhavaPanel chart={chart} lang={lang} />
               </div>
 
               {/* Panchangam for the birth moment. The vaara here is the
