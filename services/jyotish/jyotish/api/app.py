@@ -253,3 +253,36 @@ def compute_chart(request: models.ChartRequest) -> models.ChartResponse:
         # Bad input: an unreadable time, an unknown varga, a missing place.
         # 422 keeps it distinct from a genuine server fault.
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/dasha", response_model=models.DashaResponse)
+def compute_dasha(request: models.DashaRequest) -> models.DashaResponse:
+    """One level of the Vimshottari tree, and the chain running at a moment.
+
+    Separate from `/api/chart` because the tree is walked, not fetched: five
+    levels of nine lords is 59,049 periods, so the client asks for one node's
+    children per request via `path`.
+    """
+    try:
+        return service.compute_dasha(request)
+    except places_db.PlacesDatabaseMissing as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/panchangam", response_model=models.PanchangamResponse)
+def compute_panchangam(
+    request: models.PanchangamRequest,
+) -> models.PanchangamResponse:
+    """The five limbs, the kalams and the gowri windows for a moment at a place.
+
+    The panchangam of a birth and the panchangam of a day are the same
+    computation at different instants, so one endpoint serves both.
+    """
+    try:
+        return service.compute_panchangam(request)
+    except places_db.PlacesDatabaseMissing as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

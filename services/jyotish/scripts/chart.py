@@ -31,7 +31,8 @@ try:
     from jyotish.core import positions as pos
     from jyotish.core.angles import format_dms, format_zodiacal
     from jyotish.core.birthdata import BirthData, format_time_12h, parse_time
-    from jyotish.core.zodiac import GRAHAS, NAKSHATRAS, RASIS
+    from jyotish.core.zodiac import GRAHAS, MOON, NAKSHATRAS, RASIS
+    from jyotish.dasha import vimshottari as vd
 except ImportError:
     # Almost always the system Python rather than the project venv.
     _env.ensure_dependencies()
@@ -94,6 +95,131 @@ def draw_south_indian(
     return "\n".join(lines)
 
 
+def print_dasha(birth, chart, at_text: str | None, year_length: str, lang: str) -> None:
+    """The Vimshottari table: balance, mahadashas, and what is running.
+
+    Dates are printed in local time at the birth place, which is the frame a
+    printed jathagam uses. The engine works in UTC throughout and converts only
+    here, at the display edge.
+    """
+    from datetime import timezone
+
+    zone = birth.zone
+    birth_utc = birth.utc.replace(tzinfo=None)
+    moon = chart.grahas[MOON].longitude
+
+    def local(moment) -> str:
+        return (
+            moment.replace(tzinfo=timezone.utc).astimezone(zone).strftime("%Y-%m-%d")
+        )
+
+    def local_dt(moment) -> str:
+        return (
+            moment.replace(tzinfo=timezone.utc).astimezone(zone)
+            .strftime("%Y-%m-%d %H:%M")
+        )
+
+    if at_text:
+        try:
+            at_local = datetime.fromisoformat(at_text)
+        except ValueError:
+            sys.exit(f"\n--at must be YYYY-MM-DD or an ISO datetime, not {at_text!r}.\n")
+    else:
+        at_local = datetime.now()
+    at = at_local.replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
+
+    balance = vd.balance_at_birth(moon, year_length=year_length)
+    star = NAKSHATRAS[balance.nakshatra]
+
+    print(f"\nVimshottari dasha  ({year_length} year, "
+          f"{vd.year_days(year_length)} days)")
+    print(f"Birth star : {star.en} ({star.ta})")
+    print(f"Balance    : {balance.lord_name.en} ({balance.lord_name.ta})  "
+          f"{balance.years}y {balance.months}m {balance.days}d   "
+          f"[{balance.remaining_fraction * 100:.2f}% of the star still to cross]")
+
+    periods = vd.mahadashas(birth_utc, moon, year_length=year_length)[:9]
+    print(f"\n{'Mahadasha':<12}{'Tamil':<12}{'From':<12}{'To':<12}{'Years':>6}")
+    print("-" * 54)
+    for p in periods:
+        mark = "  <" if p.contains(at) else ""
+        print(f"{p.lord_name.en:<12}{p.lord_name.ta:<12}{local(p.start):<12}"
+              f"{local(p.end):<12}{vd.YEARS[p.lord]:>6}{mark}")
+
+    chain = vd.chain_at(birth_utc, moon, at, year_length=year_length)
+    if not chain:
+        print(f"\n{local(at)} falls outside the 120-year cycle from this birth.")
+        return
+
+    print(f"\nRunning on {local(at)}:")
+    for p in chain:
+        name = p.level_name
+        label = f"{name.en} / {name.ta}"
+        print(f"  {label:<32}{p.lord_name.en:<10}{p.lord_name.ta:<12}"
+              f"{local_dt(p.start)}  ->  {local_dt(p.end)}")
+
+
+def print_panchangam(birth, system, lang: str) -> None:
+    """The Tamil daily almanac for the birth moment."""
+    from datetime import timezone
+
+    from jyotish.panchanga import panchangam as pg
+
+    zone = birth.zone
+    p = pg.compute(
+        birth.utc.replace(tzinfo=None), birth.latitude, birth.longitude,
+        zone.key, system,
+    )
+
+    def clock(moment) -> str:
+        if moment is None:
+            return "--"
+        return moment.replace(tzinfo=timezone.utc).astimezone(zone).strftime("%H:%M")
+
+    def stamp(moment) -> str:
+        return (
+            moment.replace(tzinfo=timezone.utc).astimezone(zone)
+            .strftime("%d %b %H:%M")
+        )
+
+    print(f"\nPanchangam  {p.tamil_year_name.ta} ({p.tamil_year_name.en}) "
+          f"{p.tamil_month_name.ta} {p.tamil_day}, {p.vaara_name.ta}")
+    print(f"            {p.ayana_name.ta} · {p.ritu_name.ta}")
+    print(f"Sun         {clock(p.sun.rising)} -> {clock(p.sun.setting)}"
+          + ("" if p.has_daylight else f"   [{p.sun.condition}]"))
+    print(f"Moon        {clock(p.moon.rising)} -> {clock(p.moon.setting)}")
+
+    print(f"\n{'Limb':<12}{'Name':<18}{'Tamil':<18}until")
+    print("-" * 62)
+    for label, limb, extra in (
+        ("Tithi", p.tithi, f" ({p.paksha_name.ta})"),
+        ("Nakshatram", p.nakshatra, ""),
+        ("Yogam", p.yoga, ""),
+        ("Karanam", p.karana, ""),
+    ):
+        print(f"{label:<12}{limb.name.en:<18}{limb.name.ta + extra:<18}"
+              f"{stamp(limb.end)}")
+
+    if not p.has_daylight:
+        print("\nNo sunrise or sunset on this date, so rahu kalam and the gowri")
+        print("windows -- all fractions of the daylight interval -- are undefined.")
+        return
+
+    print()
+    for window in (p.rahu_kalam, p.yamagandam, p.kuligai):
+        print(f"{window.name.en:<12}{window.name.ta:<18}"
+              f"{clock(window.start)} - {clock(window.end)}")
+
+    print("\nGowri panchangam        pagal (day)                iravu (night)")
+    print("-" * 70)
+    for day, night in zip(p.gowri_day, p.gowri_night):
+        mark = lambda w: "+" if w.auspicious else "-"  # noqa: E731
+        print(f"  {mark(day)} {day.name.ta:<14}{clock(day.start)}-{clock(day.end)}"
+              f"      {mark(night)} {night.name.ta:<14}"
+              f"{clock(night.start)}-{clock(night.end)}")
+    print("\n  + auspicious (nalla neram)   - avoid")
+
+
 def format_offset(delta) -> str:
     """'UTC+06:30' -- including the odd historical offsets that are not whole hours."""
     total = int(delta.total_seconds())
@@ -152,6 +278,20 @@ def main() -> None:
     p.add_argument("--ayanamsa", default="lahiri",
                    choices=[a.value for a in ay.Ayanamsa])
     p.add_argument("--lang", default="en", choices=["en", "ta"])
+    p.add_argument("--panchangam", action="store_true",
+                   help="print the Tamil almanac for the birth moment: the five "
+                        "limbs, rahu kalam, and the gowri windows")
+    p.add_argument("--dasha", action="store_true",
+                   help="print the Vimshottari dasha: balance, the nine "
+                        "mahadashas, and the five-level chain running now")
+    p.add_argument("--at", default=None,
+                   help="with --dasha, which moment to report as running "
+                        "(YYYY-MM-DD, local to the birth place). Default: now")
+    p.add_argument("--dasha-year", default=vd.DEFAULT_YEAR_LENGTH,
+                   choices=sorted(vd.YEAR_DAYS),
+                   help="days in a dasha year. The solar variants agree to "
+                        "within two days over a whole cycle; savana is a "
+                        "different tradition and lands ten months away")
     p.add_argument("--varga", default="d1",
                    help="divisional charts to draw, comma-separated, "
                         'e.g. "d1,d9" for Rasi plus Navamsam. Use "all" for the '
@@ -237,6 +377,11 @@ def main() -> None:
         print(f"\n{vc.varga.code}  {name.en} / {name.ta} ({name.ta_latin}) "
               f"kattam -- {vc.varga.significance}")
         print(draw_south_indian(vc.lagna_rasi, vc.graha_rasis, vc.retrogrades, args.lang))
+
+    if args.panchangam:
+        print_panchangam(birth, ay.Ayanamsa(args.ayanamsa), args.lang)
+    if args.dasha:
+        print_dasha(birth, chart, args.at, args.dasha_year, args.lang)
     print()
 
 

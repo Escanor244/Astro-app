@@ -228,6 +228,202 @@ class ChartResponse(BaseModel):
     engine_version: str
 
 
+class DashaRequest(ChartRequest):
+    """A birth, plus which slice of its dasha tree to return.
+
+    The tree is not returned whole, and cannot be: five levels of nine lords is
+    59,049 periods, and the deepest are minutes long. The client asks for one
+    node's children at a time by naming the chain of lords above it, which is
+    how the UI drills down a level per click.
+    """
+
+    path: list[int] = Field(
+        default_factory=list,
+        max_length=4,
+        description="Lord chain to expand, outermost first. Empty returns the "
+                    "mahadashas; [5] returns the antardashas inside Venus.",
+        examples=[[], [5], [5, 6]],
+    )
+    at: str | None = Field(
+        default=None,
+        description="Which moment to report as running, as a local date or "
+                    "datetime **at the birth place**. Defaults to now.",
+        examples=["2026-08-10", "2026-08-10T14:30:00"],
+    )
+    year_length: str = Field(
+        default="julian",
+        description="Days in a dasha year. A convention, not an astronomical "
+                    "fact. The four solar variants differ by under two days "
+                    "across a whole cycle; 'savana' (360) is a different "
+                    "tradition and lands ten months away. See docs/02-dasha.md.",
+        examples=["julian", "sidereal", "savana"],
+    )
+
+    @field_validator("path")
+    @classmethod
+    def _known_lords(cls, value: list[int]) -> list[int]:
+        if any(not 0 <= lord <= 8 for lord in value):
+            raise ValueError("Every entry in path must be a graha index 0-8.")
+        return value
+
+    @field_validator("year_length")
+    @classmethod
+    def _known_year_length(cls, value: str) -> str:
+        from ..dasha.vimshottari import YEAR_DAYS
+
+        if value not in YEAR_DAYS:
+            raise ValueError(
+                f"Unknown dasha year length {value!r}. "
+                f"Known: {', '.join(sorted(YEAR_DAYS))}."
+            )
+        return value
+
+
+class PeriodOut(BaseModel):
+    """One dasha period, at whichever of the five levels it sits.
+
+    Dates come back twice. ``start``/``end`` are local time at the **birth
+    place**, which is the frame a printed dasha table uses and the one an
+    astrologer reads; ``start_utc``/``end_utc`` are the unambiguous instants, for
+    a client doing its own arithmetic.
+    """
+
+    lords: list[int]
+    lord_names: list[TermOut]
+    level: int = Field(ge=1, le=5)
+    level_name: TermOut
+    start: str
+    end: str
+    start_utc: str
+    end_utc: str
+    days: float
+    #: True when this period contains the requested `at` moment.
+    running: bool
+    has_children: bool
+
+
+class DashaBalanceOut(BaseModel):
+    """The unexpired first mahadasha -- திசை இருப்பு, as almanacs print it.
+
+    ``years``/``months``/``days`` are dasha units: a month is a twelfth of a
+    dasha year and a day a thirtieth of that, not calendar units.
+    """
+
+    lord: int = Field(ge=0, le=8)
+    lord_name: TermOut
+    nakshatra: int = Field(ge=0, le=26)
+    nakshatra_name: TermOut
+    remaining_fraction: float
+    years: int
+    months: int
+    days: int
+    formatted: str
+    formatted_ta: str
+
+
+class DashaResponse(BaseModel):
+    balance: DashaBalanceOut
+    #: Echoed back because it changes every date below and is a convention.
+    year_length: str
+    year_days: float
+    path: list[int]
+    #: The node whose children `periods` are, or null at the top level.
+    parent: PeriodOut | None
+    periods: list[PeriodOut]
+    #: The nested chain running at `at`, outermost first. Empty when `at` falls
+    #: outside the 240 years the sequence covers.
+    running: list[PeriodOut]
+    at: str
+    moon_longitude: float
+    timezone: str
+    engine_version: str
+
+
+class PanchangamRequest(ChartRequest):
+    """A moment and a place. Same shape as a chart request, deliberately.
+
+    The panchangam of a birth and the panchangam of a day are the same
+    computation asked at different instants, so there is one endpoint and the
+    client simply sends the date and time it cares about. `vargas` is ignored.
+    """
+
+
+class LimbOut(BaseModel):
+    """One of the five limbs, with the window it occupies.
+
+    ``end`` is the value a Tamil almanac actually prints -- "நட்சத்திரம் ரோகிணி
+    வரை 14:23" -- and it is why the engine root-finds rather than looking up a
+    duration. Local times are wall-clock at the place asked about.
+    """
+
+    index: int
+    name: TermOut
+    start: str
+    end: str
+    start_utc: str
+    end_utc: str
+    #: How far through the limb the moment sits, in [0, 1).
+    elapsed: float
+
+
+class WindowOut(BaseModel):
+    """A named span of the day: a kalam, or one gowri period."""
+
+    name: TermOut
+    start: str
+    end: str
+    #: None where the tradition does not classify the window either way.
+    auspicious: bool | None = None
+
+
+class PanchangamResponse(BaseModel):
+    moment: str
+    timezone: str
+    place_name: str | None
+    latitude: float
+    longitude: float
+    ayanamsa: AyanamsaName
+
+    sunrise: str | None
+    sunset: str | None
+    next_sunrise: str | None
+    moonrise: str | None
+    moonset: str | None
+    #: "normal", "always_up" (midnight sun) or "always_down" (polar night).
+    #: Anything but "normal" means there is no daylight interval, so every
+    #: window below that is a fraction of one is absent rather than guessed.
+    daylight: str
+
+    vaara: int = Field(ge=0, le=6, description="0 = Sunday, on the sunrise day")
+    vaara_name: TermOut
+
+    tithi: LimbOut
+    paksha: int = Field(ge=0, le=1, description="0 = waxing, 1 = waning")
+    paksha_name: TermOut
+    nakshatra: LimbOut
+    yoga: LimbOut
+    karana: LimbOut
+
+    rahu_kalam: WindowOut | None
+    yamagandam: WindowOut | None
+    kuligai: WindowOut | None
+    gowri_day: list[WindowOut]
+    gowri_night: list[WindowOut]
+    #: The auspicious gowri windows. See docs/03-panchangam.md: a printed Tamil
+    #: tear-off calendar prints something different under the same heading.
+    nalla_neram: list[WindowOut]
+
+    tamil_month: int
+    tamil_month_name: TermOut
+    tamil_day: int
+    tamil_year: int
+    tamil_year_name: TermOut
+    ayana_name: TermOut
+    ritu_name: TermOut
+
+    engine_version: str
+
+
 class RecordFields(BaseModel):
     """The shape of a saved birth, with no validation attached.
 

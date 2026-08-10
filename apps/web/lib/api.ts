@@ -257,3 +257,141 @@ export function computeChart(body: ChartRequest): Promise<Chart> {
     body: JSON.stringify(body),
   });
 }
+
+/* --- Vimshottari dasha ---------------------------------------------------- */
+
+/** One dasha period at any of the five levels.
+ *
+ *  `start`/`end` are local wall-clock time at the *birth place*, which is the
+ *  frame a printed dasha table uses. `start_utc`/`end_utc` are the same instants
+ *  unambiguously, for arithmetic. */
+export type DashaPeriod = {
+  lords: number[];
+  lord_names: Term[];
+  level: number;
+  level_name: Term;
+  start: string;
+  end: string;
+  start_utc: string;
+  end_utc: string;
+  days: number;
+  running: boolean;
+  has_children: boolean;
+};
+
+export type DashaBalance = {
+  lord: number;
+  lord_name: Term;
+  nakshatra: number;
+  nakshatra_name: Term;
+  remaining_fraction: number;
+  years: number;
+  months: number;
+  days: number;
+  formatted: string;
+  formatted_ta: string;
+};
+
+export type Dasha = {
+  balance: DashaBalance;
+  year_length: string;
+  year_days: number;
+  path: number[];
+  parent: DashaPeriod | null;
+  periods: DashaPeriod[];
+  running: DashaPeriod[];
+  at: string;
+  moon_longitude: number;
+  timezone: string;
+  engine_version: string;
+};
+
+export type DashaRequest = ChartRequest & {
+  /** Lord chain to expand, outermost first. Empty gives the mahadashas. */
+  path?: number[];
+  /** Local date/datetime at the birth place to report as running. */
+  at?: string | null;
+  year_length?: string;
+};
+
+/** Fetches one level of the tree. The whole tree is never requested: five
+ *  levels of nine lords is 59,049 periods, and the deepest are minutes long. */
+export function computeDasha(body: DashaRequest): Promise<Dasha> {
+  return request<Dasha>("/api/dasha", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/* --- panchangam ----------------------------------------------------------- */
+
+/** One of the five limbs. `end` is the "until HH:MM" a Tamil almanac prints. */
+export type Limb = {
+  index: number;
+  name: Term;
+  start: string;
+  end: string;
+  start_utc: string;
+  end_utc: string;
+  elapsed: number;
+};
+
+/** A named span of the day: a kalam, or one gowri window. */
+export type DayWindow = {
+  name: Term;
+  start: string;
+  end: string;
+  auspicious: boolean | null;
+};
+
+export type Panchangam = {
+  moment: string;
+  timezone: string;
+  place_name: string | null;
+  latitude: number;
+  longitude: number;
+  ayanamsa: string;
+
+  sunrise: string | null;
+  sunset: string | null;
+  next_sunrise: string | null;
+  moonrise: string | null;
+  moonset: string | null;
+  /** Anything but "normal" means no daylight interval, so the windows below
+   *  that are fractions of one are absent rather than guessed. */
+  daylight: "normal" | "always_up" | "always_down";
+
+  vaara: number;
+  vaara_name: Term;
+
+  tithi: Limb;
+  paksha: number;
+  paksha_name: Term;
+  nakshatra: Limb;
+  yoga: Limb;
+  karana: Limb;
+
+  rahu_kalam: DayWindow | null;
+  yamagandam: DayWindow | null;
+  kuligai: DayWindow | null;
+  gowri_day: DayWindow[];
+  gowri_night: DayWindow[];
+  nalla_neram: DayWindow[];
+
+  tamil_month: number;
+  tamil_month_name: Term;
+  tamil_day: number;
+  tamil_year: number;
+  tamil_year_name: Term;
+  ayana_name: Term;
+  ritu_name: Term;
+
+  engine_version: string;
+};
+
+export function computePanchangam(body: ChartRequest): Promise<Panchangam> {
+  return request<Panchangam>("/api/panchangam", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

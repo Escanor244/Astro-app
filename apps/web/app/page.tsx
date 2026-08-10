@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   type Chart,
+  type ChartRequest,
   type Meta,
   type RecordInput,
   type SavedRecord,
@@ -15,7 +16,9 @@ import {
 import { downloadChart } from "@/lib/chart-export";
 import { ChartLibrary } from "@/components/ChartLibrary";
 import { BirthForm, type FormState } from "@/components/BirthForm";
+import { DashaTree } from "@/components/DashaTree";
 import { GrahaTable } from "@/components/GrahaTable";
+import { PanchangamPanel } from "@/components/PanchangamPanel";
 import { type Language, SouthIndianChart } from "@/components/SouthIndianChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -39,6 +42,11 @@ export default function Home() {
   const [lang, setLang] = useState<Language>("en");
   const [hover, setHover] = useState<number | null>(null);
 
+  // The request that produced the chart on screen. The dasha and panchangam
+  // panels re-issue it against their own endpoints, so they always describe the
+  // chart being displayed rather than whatever the form has since been edited to.
+  const [lastRequest, setLastRequest] = useState<ChartRequest | null>(null);
+
   // Library state. `savedId` tracks which record the form currently represents,
   // so Save updates that record rather than silently creating duplicates every
   // time the user tweaks and re-saves.
@@ -57,21 +65,22 @@ export default function Home() {
     if (!form.place) return;
     setBusy(true);
     setError(null);
+    const body: ChartRequest = {
+      date: form.date,
+      time: form.time,
+      geonameid: form.place.geonameid,
+      ayanamsa: form.ayanamsa,
+      vargas: form.vargas,
+      fold,
+      name: form.name || null,
+    };
     try {
-      setChart(
-        await computeChart({
-          date: form.date,
-          time: form.time,
-          geonameid: form.place.geonameid,
-          ayanamsa: form.ayanamsa,
-          vargas: form.vargas,
-          fold,
-          name: form.name || null,
-        }),
-      );
+      setChart(await computeChart(body));
+      setLastRequest(body);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
       setChart(null);
+      setLastRequest(null);
     } finally {
       setBusy(false);
     }
@@ -142,24 +151,25 @@ export default function Home() {
 
     setBusy(true);
     setError(null);
+    const body: ChartRequest = {
+      date: record.birth_date,
+      time: record.birth_time,
+      latitude: record.latitude,
+      longitude: record.longitude,
+      place_name: record.place_name,
+      timezone: record.timezone_name,
+      fold: record.fold,
+      ayanamsa: record.ayanamsa,
+      vargas: record.vargas,
+      name: record.name,
+    };
     try {
-      setChart(
-        await computeChart({
-          date: record.birth_date,
-          time: record.birth_time,
-          latitude: record.latitude,
-          longitude: record.longitude,
-          place_name: record.place_name,
-          timezone: record.timezone_name,
-          fold: record.fold,
-          ayanamsa: record.ayanamsa,
-          vargas: record.vargas,
-          name: record.name,
-        }),
-      );
+      setChart(await computeChart(body));
+      setLastRequest(body);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not open that chart.");
       setChart(null);
+      setLastRequest(null);
     } finally {
       setBusy(false);
     }
@@ -423,6 +433,31 @@ export default function Home() {
 
               <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <GrahaTable chart={chart} lang={lang} onHover={setHover} />
+              </div>
+
+              {/* Panchangam for the birth moment. The vaara here is the
+                  sunrise-to-sunrise weekday, which differs from the calendar
+                  one for any birth between midnight and sunrise. */}
+              <div className="print-chart rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">
+                  பஞ்சாங்கம்{" "}
+                  <span className="font-normal text-slate-500">
+                    Panchangam at birth
+                  </span>
+                </h2>
+                <PanchangamPanel request={lastRequest} lang={lang} />
+              </div>
+
+              {/* Dasha. A chart says what is possible; the dasha says when, so
+                  this is where a consultation actually spends its time. */}
+              <div className="print-chart rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">
+                  விம்சோத்தரி தசை{" "}
+                  <span className="font-normal text-slate-500">
+                    Vimshottari dasha
+                  </span>
+                </h2>
+                <DashaTree request={lastRequest} lang={lang} />
               </div>
 
               <p className="text-center text-xs text-slate-400">

@@ -151,12 +151,23 @@ house system, drawn directly. This is why `ChartPositions.house_of()` is simply
 
 ## What comes next
 
-Phase 1 turns this into a real chart with divisional charts and dignities.
-Phase 3 is **KP (Krishnamurti Paddhati)** — a Tamil system, created in Chennai,
-that subdivides each nakshatra by the Vimshottari proportions to get 249 "subs",
-and predicts from cuspal sub-lords rather than from sign placement. It is the
-most precise branch of Jyotish, it is badly served by existing apps, and
+**[02-dasha.md](02-dasha.md)** is the astrology of *when*: your birth star does
+not only name you, it starts a 120-year sequence of planetary periods that runs
+for life. That is the technique a Tamil consultation actually spends its time on.
+
+**[03-panchangam.md](03-panchangam.md)** is the daily almanac — tithi,
+natchathiram, yogam, karanam, rahu kalam and நல்ல நேரம் — and the Tamil
+calendar date.
+
+Then **KP (Krishnamurti Paddhati)** — a Tamil system, created in Chennai, that
+subdivides each nakshatra by those same Vimshottari proportions to get 249
+"subs", and predicts from cuspal sub-lords rather than from sign placement. It is
+the most precise branch of Jyotish, it is badly served by existing apps, and
 `docs/04-kp-system.md` will teach it from zero.
+
+Notice that the dasha proportions and the KP subs are the *same* nine numbers.
+Learning [02-dasha.md](02-dasha.md) properly is most of the way to understanding
+KP.
 
 ---
 

@@ -129,6 +129,25 @@ def _tropical_longitude(t, target: str) -> float:
     return _mean_ecliptic_longitude(apparent, t)
 
 
+def sidereal_longitude(t, graha: int, ayanamsa_deg: float) -> float:
+    """Sidereal longitude of a single graha, degrees.
+
+    A narrow door into the same machinery :func:`compute` uses, for callers that
+    need one body repeatedly rather than a whole chart. The panchangam is the
+    reason it exists: finding the instant a tithi ends means evaluating the Sun
+    and Moon a dozen times while a root-finder closes in, and casting a full
+    nine-graha chart at each step would be about forty times the work for two
+    numbers.
+    """
+    if graha in _TARGETS:
+        return ay.to_sidereal(_tropical_longitude(t, _TARGETS[graha]), ayanamsa_deg)
+    if graha == RAHU:
+        return ay.to_sidereal(mean_lunar_node(t.tt), ayanamsa_deg)
+    if graha == KETU:
+        return norm360(ay.to_sidereal(mean_lunar_node(t.tt), ayanamsa_deg) + 180.0)
+    raise ValueError(f"Not a graha index: {graha}")
+
+
 def ascendant(t, latitude: float, longitude: float, ayanamsa_deg: float) -> float:
     """Sidereal ascendant (lagna) in degrees.
 

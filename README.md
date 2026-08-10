@@ -9,8 +9,9 @@ A Jyotish engine and (soon) PWA built around three commitments:
 3. **Show your work.** Every future prediction will cite the classical rule and
    the exact placement that triggered it. No unsourced assertions.
 
-**Status: Phase 0 complete.** The astronomy is built and validated. There is no
-UI yet — that is Phase 1. See [the build plan](#build-phases) below.
+**Status: Phase 2 complete.** Charts, divisional charts, a saved library, A4
+export, Vimshottari dasha to five levels, and the Tamil panchangam — all in a web
+UI and on the command line. See [the build plan](#build-phases) below.
 
 ---
 
@@ -83,9 +84,18 @@ cd apps\web && npm install && npm run dev
 Then open <http://localhost:3000>. Interactive API docs are at
 <http://127.0.0.1:8000/docs>.
 
+Add the dasha table and the daily almanac:
+
+```bash
+python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1 --dasha --panchangam
+```
+
 ### CLI flags
 
 Useful flags: `--varga d1,d9` or `--varga all` for divisional charts,
+`--dasha` for the Vimshottari table and the five-level chain running now
+(`--at 2030-01-01` for another date, `--dasha-year savana` for the 360-day
+tradition), `--panchangam` for the five limbs, rahu kalam and the gowri windows,
 `--ayanamsa {lahiri,true_chitrapaksha,kp,raman}`, `--lang {en,ta}`,
 `--tz Asia/Kolkata` to override the zone, `--fold 1` for the second occurrence of
 a repeated hour, and `--lat`/`--lon` for exact coordinates instead of a place.
@@ -123,13 +133,15 @@ With the venv activated (see [Quick start](#quick-start)):
 python -m pytest tests\ -q
 ```
 
-441 tests, about 10 seconds. These are not smoke tests — they compare every
-graha longitude, the lagna, and every nakshatra pada against an independent
-Swiss Ephemeris oracle across 23 birth charts, cross-check all sixteen
-divisional charts against a second implementation, and verify the lagna is
-genuinely *rising* by computing its altitude a minute later rather than trusting
-any reference. **If these fail, do not ship.** The target audience includes
-practising astrologers, for whom one wrong pada is disqualifying.
+621 tests, about 15 seconds, zero skips. These are not smoke tests — they compare
+every graha longitude, the lagna, and every nakshatra pada against an independent
+Swiss Ephemeris oracle across 23 birth charts, cross-check all sixteen divisional
+charts *and* the dasha sub-period split against a second implementation, verify
+the lagna is genuinely *rising* by computing its altitude a minute later rather
+than trusting any reference, and check all sixteen gowri windows for a real date
+against a published Tamil almanac. **If these fail, do not ship.** The target
+audience includes practising astrologers, for whom one wrong pada is
+disqualifying.
 
 **[docs/testing/](docs/testing/)** holds a testing guide per phase — what the
 tolerances mean, manual checklists, and how to cross-check against Jagannatha
@@ -211,11 +223,20 @@ AstroApp/
 │  │  ├─ zodiac.py            rasi/nakshatra data + Tamil lexicon
 │  │  └─ angles.py            normalisation, DMS formatting
 │  ├─ jyotish/charts/vargas.py    D9 Navamsam + the Shodashavarga
+│  ├─ jyotish/dasha/vimshottari.py   the 120-year cycle, five levels
+│  ├─ jyotish/panchanga/
+│  │  ├─ daylight.py          sunrise, sunset, moonrise; polar cases
+│  │  ├─ lexicon.py           Tamil tables: tithi, yoga, karana, gowri, the 60 years
+│  │  └─ panchangam.py        the five limbs, kalams, the Tamil calendar
+│  ├─ jyotish/store/records.py    the saved chart library
 │  ├─ scripts/chart.py        CLI jathagam
 │  ├─ scripts/build_places_db.py   GeoNames -> SQLite index
-│  └─ tests/                  accuracy gate, vargas, places, timezones
+│  └─ tests/                  accuracy gate, vargas, dasha, panchangam, API
 ├─ docs/
 │  ├─ 00-orientation.md       learning path
+│  ├─ ayanamsa.md             the four systems, and which to choose
+│  ├─ 02-dasha.md             Vimshottari from zero
+│  ├─ 03-panchangam.md        the Tamil daily almanac from zero
 │  ├─ ARCHITECTURE.md         stack decisions and rationale
 │  ├─ TROUBLESHOOTING.md      when something breaks
 │  └─ testing/                one testing guide per phase
@@ -238,8 +259,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
       Indian chart as SVG, Tamil place autocomplete.
 - [x] **Phase 1c — Library, export, theme.** Saved birth records, A4 chart
       export, light/dark theme, the ayanamsa guide.
-- [ ] **Phase 2 — Dasha & Panchangam.** Vimshottari to 5 levels; Tamil
-      panchangam, rahu kalam, nalla neram.
+- [x] **Phase 2 — Dasha & Panchangam.** Vimshottari to 5 levels with
+      drill-down; the five limbs with ending times, rahu kalam, gowri
+      panchangam, nalla neram, and the Tamil calendar date.
 - [ ] **Phase 3 — KP module.** 249 sub-lords, Placidus cusps, significators,
       ruling planets, horary. Paired with `docs/04-kp-system.md`.
 - [ ] **Phase 4 — Tamil compatibility.** 10 poruthams, doshams with parihara.
@@ -249,10 +271,18 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
 ## Learning path
 
 You are learning Jyotish while building this, so `docs/` is a deliverable, not
-an afterthought. Start at [docs/00-orientation.md](docs/00-orientation.md), then
-read [docs/ayanamsa.md](docs/ayanamsa.md) — the four ayanamsa systems, what they
-are, and which to choose. It is the one setting where the wrong value produces a
-chart that looks entirely normal and is wrong throughout.
+an afterthought. Read them in this order:
+
+1. **[00-orientation.md](docs/00-orientation.md)** — what makes this Vedic
+   rather than Western, the vocabulary, and the South Indian square chart.
+2. **[ayanamsa.md](docs/ayanamsa.md)** — the four systems and which to choose.
+   The one setting where a wrong value produces a chart that looks entirely
+   normal and is wrong throughout.
+3. **[02-dasha.md](docs/02-dasha.md)** — the astrology of *when*. Vimshottari
+   from zero, and why one arcsecond of Moon is three and a half hours of
+   printed date.
+4. **[03-panchangam.md](docs/03-panchangam.md)** — the daily almanac: the five
+   limbs, rahu kalam, gowri panchangam, நல்ல நேரம், and the Tamil calendar.
 
 Reference texts worth having alongside: B.V. Raman, *Hindu Predictive
 Astrology*; K.S. Krishnamurti, *Readers 1–6* (the primary KP source); and

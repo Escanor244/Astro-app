@@ -87,6 +87,41 @@ def format_time_12h(hour: int, minute: int, second: int = 0) -> str:
     return f"{display_hour}:{minute:02d}{tail} {suffix}"
 
 
+def civil_to_time(moment: datetime):
+    """A naive civil (UTC-clock) datetime as a Skyfield Time.
+
+    Built with ``ts.ut1`` rather than ``ts.utc``. Civil clock time is Universal
+    Time -- UTC with leap seconds only came into existence in 1972 -- so feeding
+    a historical instant through the TAI leap-second chain misdates it by 16
+    seconds in 1943 and 44 seconds in 1900.
+
+    Shared by :meth:`BirthData.skyfield_time` and by the panchangam, which is the
+    point: sunrise and the tithi end times have to sit on the same time scale as
+    the chart, or the Moon's nakshatra in the chart could disagree with the
+    nakshatra the panchangam says was running at that instant.
+    """
+    from .ephemeris import get_timescale
+
+    return get_timescale().ut1(
+        moment.year, moment.month, moment.day,
+        moment.hour, moment.minute,
+        moment.second + moment.microsecond / 1e6,
+    )
+
+
+def time_to_civil(t) -> datetime:
+    """The inverse of :func:`civil_to_time`: a Skyfield Time as naive civil UTC.
+
+    Uses the UT1 calendar, so a value round-trips through
+    ``civil_to_time`` exactly instead of drifting by the current UT1-UTC offset.
+    """
+    y, mo, d, h, mi, s = t.ut1_calendar()
+    whole = int(s)
+    return datetime(int(y), int(mo), int(d), int(h), int(mi)) + timedelta(
+        seconds=whole, microseconds=round((s - whole) * 1e6)
+    )
+
+
 @lru_cache(maxsize=1)
 def _tz_finder() -> TimezoneFinder:
     return TimezoneFinder()
@@ -266,20 +301,9 @@ class BirthData:
     def skyfield_time(self):
         """This birth moment as a Skyfield Time.
 
-        Deliberately built with ``ts.ut1`` rather than ``ts.utc``. Civil clock
-        time is Universal Time; UTC with leap seconds only came into existence
-        in 1972, so feeding a historical birth time through the TAI leap-second
-        chain misdates it -- by 16 seconds for a 1943 birth and 44 seconds for a
-        1900 one. That is 4 arcminutes of ascendant in the 1900 case, which is
-        enough to change the lagna near a rasi boundary.
-
-        Every Jyotish and astronomy package treats historical civil time as UT,
-        so this also keeps us consistent with the Swiss Ephemeris oracle and
-        with Jagannatha Hora.
+        See :func:`civil_to_time` for why this is UT1 and not UTC. In short: 4
+        arcminutes of ascendant for a 1900 birth, which is enough to change the
+        lagna near a rasi boundary, and it is what every other Jyotish package
+        does -- including the Swiss Ephemeris oracle we validate against.
         """
-        from .ephemeris import get_timescale
-
-        u = self.utc
-        return get_timescale().ut1(
-            u.year, u.month, u.day, u.hour, u.minute, u.second + u.microsecond / 1e6
-        )
+        return civil_to_time(self.utc.replace(tzinfo=None))

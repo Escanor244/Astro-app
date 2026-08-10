@@ -125,6 +125,114 @@ the one place we knowingly differ and why.
 
 ---
 
+## The dasha looks wrong
+
+### The dasha dates are out by days or weeks
+
+Work down this list. A dasha date is the Moon's position inside its nakshatra
+scaled up by the length of the period — about **548 days of date per degree of
+Moon** for a 20-year Venus mahadasha — so small input differences become large
+date differences. That is expected, not a bug.
+
+1. **Compare the Moon's longitude first**, to the arcsecond. If the two Moons
+   differ, the dates were never going to agree, and 548 days per degree tells you
+   exactly how much difference to expect.
+2. **Ayanamsa.** The realistic cause. 0.1° of ayanamsa is 55 days of a Venus
+   balance.
+3. **Birth time.** The Moon moves 0.55° an hour, so one hour of doubt moves a
+   19-year Saturn balance by about **nine months**. Check the AM/PM reading the
+   app echoes back, and any daylight-saving warning it showed.
+
+### The dasha is out by roughly ten months
+
+The other program is using the **savana** 360-day year. Ours defaults to the
+classical 365¼. Try `--dasha-year savana` and see whether it lines up. Both
+traditions are real; savana is not what Tamil almanacs print. See
+[02-dasha.md](02-dasha.md).
+
+### The dasha is out by a day or less
+
+One of the solar year-length variants — julian, sidereal, gregorian, tropical.
+They differ by under two days across a whole 120-year cycle and no practitioner
+distinguishes them. Neither program is wrong.
+
+### The second column is labelled differently from my book
+
+Tamil usage is **தசை / புத்தி / அந்தரம் / சூட்சுமம் / பிராணன்**, and
+"அந்தரம்" means level *three*. North Indian books call level two "antardasha".
+Same arithmetic, shifted vocabulary. The app labels the Tamil column in the Tamil
+convention.
+
+---
+
+## The panchangam looks wrong
+
+### The weekday is a day earlier than my calendar
+
+That is correct if the moment is between midnight and sunrise. The Jyotish day
+runs **sunrise to sunrise**, so a 03:00 Tuesday birth falls on Monday's vaara —
+and Monday's rahu kalam, Monday's gowri windows. Tamil almanacs are explicit
+about this.
+
+### Rahu kalam is not 90 minutes
+
+It never was. It is one **eighth of the interval between sunrise and sunset**,
+which is 90 minutes only on a day with exactly twelve hours of light. In Chennai
+the eighth runs from about 85 to 95 minutes across the year; in London, 45 to
+120. The familiar "07:30–09:00" is the idealised 6-to-6 teaching version.
+
+### The tithi or nakshatra ending time is hours off a temple almanac
+
+Tamil Nadu has two live traditions. We compute **திருக்கணித (Thirukanitha)** —
+modern ephemeris, Lahiri ayanamsa — which is what software, the Rashtriya
+Panchang and most practising astrologers use. **வாக்கிய (Vakya)**, as in the
+Pambu Panchangam, uses Surya-Siddhanta mnemonic tables and can differ by several
+hours on a limb ending and by a day on festivals. Neither is a bug.
+
+### The yogam is completely different but the tithi matches
+
+That is the signature of an **ayanamsa mismatch** in the other program. Tithi and
+karana are *differences* of two longitudes, so the ayanamsa cancels and they
+agree in any system. Yoga is a *sum*, so the ayanamsa enters twice — a tropical
+yoga is about 48° out, three and a half yogas.
+
+### நல்ல நேரம் does not match my wall calendar
+
+Two different things share the name. On this app it is the **auspicious gowri
+windows**, which is what panchangam software universally means. A printed
+tear-off Tamil calendar prints fixed one-hour bands, and they are demonstrably
+not the same windows — sample a week and you will find days where the printed
+band lands on Soram or Rogam. See [03-panchangam.md](03-panchangam.md).
+
+### No rahu kalam or gowri windows are shown at all
+
+The place and date have no sunrise or sunset — a polar summer or winter. Those
+windows are fractions of the daylight interval, so with no such interval they
+have no definition. The app says so rather than inventing a 06:00 sunrise. The
+five limbs are still shown; they are longitudes and do not depend on the horizon.
+
+### The Tamil month has 29 or 32 days
+
+Correct. A Tamil month is the Sun's residence in one rasi, and the Sun's speed
+varies, so month lengths genuinely run from 29 to 32 days. In 2026–27, Karthigai
+is 29 days and Aani is 32.
+
+---
+
+## The dasha or panchangam panel says the engine is unreachable
+
+The engine was started before Phase 2 and does not have `/api/dasha` or
+`/api/panchangam`. Restart it, then check:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+It should report `"engine_version":"2.0"`. An older value means an old process is
+still holding the port.
+
+---
+
 ## Data and downloads
 
 **The ephemeris download stalls.** Fetch it manually:
