@@ -197,6 +197,41 @@ class GrahaOut(BaseModel):
     dispositor: int = Field(ge=0, le=8)
     dispositor_name: TermOut
 
+    #: வர்க்கோத்தமம் -- same rasi in the D1 and the D9.
+    vargottama: bool
+    #: What this graha naturally signifies, whoever's chart it is.
+    karakas: list[TermOut]
+    #: Rasis this graha aspects, and the bhavas those are from the lagna.
+    aspects_rasis: list[int]
+    aspects_bhavas: list[int]
+
+
+class BhavaOut(BaseModel):
+    """One house, as read from the lagna or from the Moon.
+
+    Both readings are returned because Tamil practice does both as a matter of
+    course -- **லக்னப்படி** and **ராசிப்படி** -- and the placements do not move
+    between them, only the numbering.
+    """
+
+    number: int = Field(ge=1, le=12)
+    name: TermOut
+    #: "2nd house" / "2ஆம் பாவகம்" -- the numeric register, which Tamil keeps
+    #: separate from the ஸ்தானம் naming register.
+    label: str
+    label_ta: str
+    rasi: int = Field(ge=0, le=11)
+    rasi_name: TermOut
+    signification: str
+    lord: int = Field(ge=0, le=8)
+    lord_name: TermOut
+    occupants: list[int]
+    #: kendra | trikona | upachaya | dusthana. A house can be in two.
+    groups: list[str]
+    group_names: list[TermOut]
+    #: Grahas aspecting this house.
+    aspected_by: list[int]
+
 
 class VargaOut(BaseModel):
     """One divisional chart, ready to draw."""
@@ -237,8 +272,20 @@ class ChartResponse(BaseModel):
     ayanamsa_value: float
     ayanamsa_formatted: str
     lagna: ZodiacOut
+    #: True when the lagna itself is vargottama -- வர்க்கோத்தம லக்னம், which
+    #: Tamil treats as a property of the lagna in its own right.
+    lagna_vargottama: bool
     grahas: list[GrahaOut]
     charts: list[VargaOut]
+
+    #: The twelve houses counted from the lagna (லக்னப்படி) and from the Moon
+    #: (ராசிப்படி). Note the Tamil: no source writes "சந்திர லக்னம்".
+    bhavas: list[BhavaOut]
+    bhavas_from_moon: list[BhavaOut]
+    #: Derived lordships an astrologer names directly.
+    badhaka_house: int = Field(ge=1, le=12)
+    badhaka_lord: int = Field(ge=0, le=8)
+    maraka_lords: list[int]
     #: Set when the local time is ambiguous or never happened. The UI must show
     #: this prominently: an hour of doubt is about 15 degrees of lagna.
     time_warning: str | None = None

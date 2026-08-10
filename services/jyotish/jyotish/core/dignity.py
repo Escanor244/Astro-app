@@ -329,6 +329,42 @@ def assess(
     return built(dignity, reason)
 
 
+VARGOTTAMA = Term("Vargottama", "வர்க்கோத்தமம்", "Varkkothamam", "Vg", "வர்க்")
+
+#: Debilitated in the D1 and yet vargottama -- held to keep its strength anyway.
+#: Attested Tamil; note நீச, matching :data:`DIGNITY_NAMES`, not the doubled-ச
+#: நீச்ச that appears in one source's headline and not in its body.
+NEECHA_VARGOTTAMA = Term(
+    "Neecha vargottama", "நீச வர்க்கோத்தமம்", "Neecha varkkothamam", "NVg", "நீவ"
+)
+
+
+def vargottama(chart) -> dict[int, bool]:
+    """Which grahas occupy the same rasi in the D1 and the D9.
+
+    வர்க்கோத்தமம் -- literally "best of the divisions". A graha that lands in the
+    same rasi in the Rasi chart and the Navamsam is held to be strengthened, and
+    Tamil sources price it against ஆட்சி பலம், own-sign strength.
+
+    Key ``-1`` carries the **lagna**, which Tamil sources treat as vargottama in
+    its own right (வர்க்கோத்தம லக்னம்) rather than as a graha-only property.
+
+    Restricted to the D1/D9 pair deliberately. The term is used loosely elsewhere
+    for any varga matching the D1, but the Navamsam is the one Tamil practice
+    reads beside the Rasi chart, and widening it would report a strength nobody
+    asked about.
+    """
+    from ..charts import vargas
+
+    navamsa = vargas.compute(chart, "D9")
+    out = {
+        graha: navamsa.graha_rasis[graha] == chart.grahas[graha].position.rasi
+        for graha in range(9)
+    }
+    out[-1] = navamsa.lagna_rasi == chart.lagna.rasi
+    return out
+
+
 def assess_chart(chart) -> dict[int, GrahaDignity]:
     """Dignity for all nine grahas of a :class:`~jyotish.core.positions.ChartPositions`."""
     sun = chart.grahas[SUN].longitude

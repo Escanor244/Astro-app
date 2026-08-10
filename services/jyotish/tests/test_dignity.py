@@ -255,6 +255,60 @@ def test_a_real_chart_gets_a_dignity_for_every_graha():
         assert result.dispositor == RASI_LORDS[chart.grahas[graha].position.rasi]
 
 
+def test_vargottama_reports_every_graha_and_the_lagna():
+    """Key -1 is the lagna, which Tamil treats as vargottama in its own right."""
+    from jyotish.charts import vargas
+
+    birth = BirthData(
+        when=datetime(1990, 5, 15, 6, 30), latitude=13.0827, longitude=80.2707,
+        timezone_name="Asia/Kolkata",
+    )
+    chart = pos.compute(birth, ay.Ayanamsa.LAHIRI)
+    flags = dg.vargottama(chart)
+
+    assert sorted(flags) == [-1] + list(range(9))
+    assert all(isinstance(v, bool) for v in flags.values())
+
+    # Cross-checked against the varga module rather than restated from it.
+    navamsa = vargas.compute(chart, "D9")
+    for graha in range(9):
+        assert flags[graha] == (
+            navamsa.graha_rasis[graha] == chart.grahas[graha].position.rasi
+        )
+    assert flags[-1] == (navamsa.lagna_rasi == chart.lagna.rasi)
+
+
+def test_vargottama_is_rare_but_not_impossible():
+    """A sweep, so the function cannot be trivially always-False.
+
+    One rasi in nine matches by chance, so across enough charts some graha must
+    come out vargottama. A test that only ever saw False would pass on a
+    function that returned False unconditionally.
+    """
+    seen_true = seen_false = False
+    for day in range(1, 28, 3):
+        chart = pos.compute(
+            BirthData(
+                when=datetime(1990, 5, day, 6, 30), latitude=13.0827,
+                longitude=80.2707, timezone_name="Asia/Kolkata",
+            ),
+            ay.Ayanamsa.LAHIRI,
+        )
+        for value in dg.vargottama(chart).values():
+            seen_true |= value
+            seen_false |= not value
+    assert seen_true and seen_false
+
+
+def test_the_vargottama_tamil_is_the_doubled_ka_form():
+    """வர்க்கோத்தமம், not வர்கோத்தமம் — the rival is real, not a typo.
+
+    Adityaguruji derives the doubled form: வர்க்கம் + உத்தமம் → வர்க்கோத்தமம்.
+    """
+    assert dg.VARGOTTAMA.ta == "வர்க்கோத்தமம்"
+    assert dg.NEECHA_VARGOTTAMA.ta.startswith("நீச ")   # not நீச்ச
+
+
 def test_dignity_is_independent_of_the_house_it_falls_in():
     """It is a sign relationship, so it cannot depend on the lagna.
 

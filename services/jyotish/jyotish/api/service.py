@@ -12,7 +12,9 @@ from zoneinfo import ZoneInfo
 
 from ..charts import vargas
 from ..core import ayanamsa as ay
+from ..core import bhava
 from ..core import dignity
+from ..core import drishti
 from ..core import places as places_db
 from ..core import positions as pos
 from ..core.angles import format_dms, format_zodiacal
@@ -192,6 +194,8 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
     )
 
     dignities = dignity.assess_chart(chart)
+    vargottama = dignity.vargottama(chart)
+    aspects = drishti.for_chart(chart)
     grahas = [
         models.GrahaOut(
             graha=gi,
@@ -208,6 +212,10 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
             from_exaltation=dignities[gi].from_exaltation,
             dispositor=dignities[gi].dispositor,
             dispositor_name=term(GRAHAS[dignities[gi].dispositor]),
+            vargottama=vargottama[gi],
+            karakas=[term(k) for k in bhava.KARAKAS[gi]],
+            aspects_rasis=list(aspects[gi].rasis),
+            aspects_bhavas=list(aspects[gi].bhavas),
         )
         for gi in range(9)
     ]
@@ -224,6 +232,23 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
             graha_rasis={str(k): v for k, v in vc.graha_rasis.items()},
             retrogrades=sorted(vc.retrogrades),
         ))
+
+    def bhava_out(h) -> models.BhavaOut:
+        return models.BhavaOut(
+            number=h.number,
+            name=term(h.name),
+            label=bhava.ordinal_label(h.number),
+            label_ta=bhava.ordinal_label(h.number, "ta"),
+            rasi=h.rasi,
+            rasi_name=term(RASIS[h.rasi]),
+            signification=h.signification,
+            lord=h.lord,
+            lord_name=term(GRAHAS[h.lord]),
+            occupants=list(h.occupants),
+            groups=list(h.groups),
+            group_names=[term(bhava.GROUP_NAMES[g]) for g in h.groups],
+            aspected_by=list(drishti.who_aspects_rasi(chart, h.rasi)),
+        )
 
     warning, warning_kind = time_warning_for(birth)
 
@@ -243,8 +268,16 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
         ayanamsa_value=chart.ayanamsa_value,
         ayanamsa_formatted=format_dms(chart.ayanamsa_value),
         lagna=zodiac_out(chart.lagna),
+        lagna_vargottama=vargottama[-1],
         grahas=grahas,
         charts=charts,
+        bhavas=[bhava_out(h) for h in bhava.for_chart(chart)],
+        bhavas_from_moon=[
+            bhava_out(h) for h in bhava.for_chart(chart, from_moon=True)
+        ],
+        badhaka_house=bhava.badhaka_house(chart.lagna.rasi),
+        badhaka_lord=bhava.badhaka_lord(chart.lagna.rasi),
+        maraka_lords=list(bhava.maraka_lords(chart.lagna.rasi)),
         time_warning=warning,
         time_warning_kind=warning_kind,
         engine_version=ENGINE_VERSION,

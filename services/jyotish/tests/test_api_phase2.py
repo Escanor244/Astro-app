@@ -226,6 +226,67 @@ def test_panchangam_rejects_a_bad_time_with_a_readable_message():
     assert r.status_code == 422
 
 
+# --- bhavas and graha state on the chart response -----------------------------
+
+
+def test_the_chart_carries_both_house_readings():
+    """லக்னப்படி and ராசிப்படி — Tamil practice reads a chart both ways."""
+    body = client.post("/api/chart", json=CHENNAI).json()
+    for key in ("bhavas", "bhavas_from_moon"):
+        houses = body[key]
+        assert len(houses) == 12
+        assert [h["number"] for h in houses] == list(range(1, 13))
+        assert sorted(h["rasi"] for h in houses) == list(range(12))
+        # Every graha placed exactly once.
+        assert sorted(g for h in houses for g in h["occupants"]) == list(range(9))
+
+    # Same placements, different numbering — nothing moves between the passes.
+    by_rasi = {h["rasi"]: h["occupants"] for h in body["bhavas"]}
+    assert by_rasi == {
+        h["rasi"]: h["occupants"] for h in body["bhavas_from_moon"]
+    }
+
+
+def test_the_bhava_labels_keep_the_two_tamil_registers_apart():
+    body = client.post("/api/chart", json=CHENNAI).json()
+    second = body["bhavas"][1]
+    assert second["label"] == "2nd house"
+    assert second["label_ta"] == "2ஆம் பாவகம்"
+    assert second["name"]["ta"].endswith("ஸ்தானம்")
+
+
+def test_the_derived_lordships_are_present_and_sane():
+    body = client.post("/api/chart", json=CHENNAI).json()
+    assert body["badhaka_house"] in (7, 9, 11)
+    assert 0 <= body["badhaka_lord"] <= 6          # never a node
+    assert 1 <= len(body["maraka_lords"]) <= 2
+    assert len(set(body["maraka_lords"])) == len(body["maraka_lords"])
+
+
+def test_every_graha_carries_its_state_and_karakas():
+    body = client.post("/api/chart", json=CHENNAI).json()
+    assert isinstance(body["lagna_vargottama"], bool)
+    for g in body["grahas"]:
+        assert isinstance(g["vargottama"], bool)
+        assert isinstance(g["combust"], bool)
+        assert g["karakas"], g["name"]["en"]
+        assert all(k["ta"].endswith("காரகன்") for k in g["karakas"])
+        # Nodes have no drishti under the default; everyone else has 1 or 3.
+        assert len(g["aspects_rasis"]) == len(g["aspects_bhavas"])
+        assert len(g["aspects_rasis"]) in (1, 3)
+
+
+def test_aspected_by_agrees_with_the_grahas_own_aspect_lists():
+    """The two directions of the same question, over HTTP."""
+    body = client.post("/api/chart", json=CHENNAI).json()
+    for house in body["bhavas"]:
+        forward = {
+            g["graha"] for g in body["grahas"]
+            if house["rasi"] in g["aspects_rasis"]
+        }
+        assert set(house["aspected_by"]) == forward
+
+
 # --- CORS --------------------------------------------------------------------
 
 

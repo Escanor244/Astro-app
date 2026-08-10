@@ -84,6 +84,33 @@ export type Graha = {
   from_exaltation: number | null;
   dispositor: number;
   dispositor_name: Term;
+
+  /** வர்க்கோத்தமம் — same rasi in the D1 and the D9. */
+  vargottama: boolean;
+  /** What this graha naturally signifies, whoever's chart it is. */
+  karakas: Term[];
+  aspects_rasis: number[];
+  aspects_bhavas: number[];
+};
+
+/** One house, read from the lagna (லக்னப்படி) or from the Moon (ராசிப்படி).
+ *  Note the Tamil: no source writes "சந்திர லக்னம்" — see docs/bhava-sources.md. */
+export type Bhava = {
+  number: number;
+  name: Term;
+  /** The numeric register, which Tamil keeps separate from the ஸ்தானம் one. */
+  label: string;
+  label_ta: string;
+  rasi: number;
+  rasi_name: Term;
+  signification: string;
+  lord: number;
+  lord_name: Term;
+  occupants: number[];
+  /** kendra | trikona | upachaya | dusthana. A house can be in two. */
+  groups: string[];
+  group_names: Term[];
+  aspected_by: number[];
 };
 
 export type VargaChart = {
@@ -115,8 +142,14 @@ export type Chart = {
   ayanamsa_value: number;
   ayanamsa_formatted: string;
   lagna: ZodiacPosition;
+  lagna_vargottama: boolean;
   grahas: Graha[];
   charts: VargaChart[];
+  bhavas: Bhava[];
+  bhavas_from_moon: Bhava[];
+  badhaka_house: number;
+  badhaka_lord: number;
+  maraka_lords: number[];
   time_warning: string | null;
   /** Only an "ambiguous" time has a second reading to offer. */
   time_warning_kind: "ambiguous" | "nonexistent" | null;
