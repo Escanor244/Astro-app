@@ -27,6 +27,7 @@ import _env  # noqa: E402  -- must follow the path bootstrap above
 try:
     from jyotish.charts import vargas
     from jyotish.core import ayanamsa as ay
+    from jyotish.core import dignity
     from jyotish.core import places as places_db
     from jyotish.core import positions as pos
     from jyotish.core.angles import format_dms, format_zodiacal
@@ -362,14 +363,23 @@ def main() -> None:
           f"{format_zodiacal(lagna.longitude)}  "
           f"{NAKSHATRAS[lagna.nakshatra].en} pada {lagna.pada}")
 
-    print(f"\n{'Graha':<10}{'Tamil':<12}{'Rasi':<13}{'Deg':>13}  {'Nakshatra':<18}{'Pada':>5}{'Ho':>4}  R")
-    print("-" * 82)
+    # The three marked states share one column because that is how a printed
+    # jathagam shows them: R = vakram, C = asthangatham (combust). They are
+    # independent of each other and of the dignity beside them.
+    dignities = dignity.assess_chart(chart)
+    print(f"\n{'Graha':<10}{'Tamil':<12}{'Rasi':<13}{'Deg':>13}  {'Nakshatra':<18}"
+          f"{'Pada':>5}{'Ho':>4}  {'St':<4}{'Dignity':<14}Tamil")
+    print("-" * 104)
     for gi in range(9):
         gp = chart.grahas[gi]
         z = gp.position
+        d = dignities[gi]
+        state = ("R" if gp.retrograde else "") + ("C" if d.combust else "")
         print(f"{GRAHAS[gi].en:<10}{GRAHAS[gi].ta:<12}{RASIS[z.rasi].en:<13}"
               f"{format_zodiacal(z.longitude):>13}  {NAKSHATRAS[z.nakshatra].en:<18}"
-              f"{z.pada:>5}{chart.house_of(gi):>4}  {'R' if gp.retrograde else ''}")
+              f"{z.pada:>5}{chart.house_of(gi):>4}  {state:<4}"
+              f"{d.name.en:<14}{d.name.ta}")
+    print("\n  R = vakram (retrograde)   C = asthangatham (combust)")
 
     for code in requested:
         vc = vargas.compute(chart, code)

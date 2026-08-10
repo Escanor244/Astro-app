@@ -51,14 +51,39 @@ export type ZodiacPosition = {
   nakshatra_lord_name: Term;
 };
 
+/** The dignity ladder. "undefined" for Rahu and Ketu, which the classical
+ *  sources leave unassigned rather than us guessing. */
+export type DignityState =
+  | "exalted"
+  | "moolatrikona"
+  | "own"
+  | "great_friend"
+  | "friend"
+  | "neutral"
+  | "enemy"
+  | "debilitated"
+  | "undefined";
+
 export type Graha = {
   graha: number;
   name: Term;
   sanskrit: string;
   position: ZodiacPosition;
   house: number;
+
+  /** The three marked states. Independent — a graha can be all three at once. */
   retrograde: boolean;
+  combust: boolean;
   speed_deg_per_day: number;
+
+  dignity: DignityState;
+  dignity_name: Term;
+  /** Why, in plain words — shown as a tooltip. */
+  dignity_reason: string;
+  /** Degrees from deep exaltation, 0–180. Null for the nodes. */
+  from_exaltation: number | null;
+  dispositor: number;
+  dispositor_name: Term;
 };
 
 export type VargaChart = {

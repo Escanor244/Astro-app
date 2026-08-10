@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from ..charts import vargas
 from ..core import ayanamsa as ay
+from ..core import dignity
 from ..core import places as places_db
 from ..core import positions as pos
 from ..core.angles import format_dms, format_zodiacal
@@ -190,6 +191,7 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
         birth.latitude, birth.longitude, system, ENGINE_VERSION,
     )
 
+    dignities = dignity.assess_chart(chart)
     grahas = [
         models.GrahaOut(
             graha=gi,
@@ -198,7 +200,14 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
             position=zodiac_out(chart.grahas[gi].position),
             house=chart.house_of(gi),
             retrograde=chart.grahas[gi].retrograde,
+            combust=dignities[gi].combust,
             speed_deg_per_day=chart.grahas[gi].speed_deg_per_day,
+            dignity=dignities[gi].dignity.value,
+            dignity_name=term(dignities[gi].name),
+            dignity_reason=dignities[gi].reason,
+            from_exaltation=dignities[gi].from_exaltation,
+            dispositor=dignities[gi].dispositor,
+            dispositor_name=term(GRAHAS[dignities[gi].dispositor]),
         )
         for gi in range(9)
     ]

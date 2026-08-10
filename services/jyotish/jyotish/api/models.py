@@ -172,8 +172,26 @@ class GrahaOut(BaseModel):
     sanskrit: str
     position: ZodiacOut
     house: int = Field(ge=1, le=12, description="Whole-sign bhava from the lagna")
+
+    #: The three states a printed jathagam marks, and they are independent --
+    #: a graha can be all three at once and each says something different.
     retrograde: bool
+    combust: bool = Field(description="அஸ்தங்கதம், burnt by nearness to the Sun")
     speed_deg_per_day: float
+
+    #: exalted | moolatrikona | own | friend | neutral | enemy | debilitated,
+    #: or "undefined" for Rahu and Ketu, which the classical sources leave
+    #: unassigned. See jyotish/core/dignity.py.
+    dignity: str
+    dignity_name: TermOut
+    #: Why, in plain words. A dignity is the first place a user asks "why?".
+    dignity_reason: str
+    #: Degrees from the deep exaltation point, 0-180. Null for the nodes.
+    #: 0 is peak exaltation; 180 is the depth of debilitation.
+    from_exaltation: float | None
+    #: Lord of the rasi the graha occupies.
+    dispositor: int = Field(ge=0, le=8)
+    dispositor_name: TermOut
 
 
 class VargaOut(BaseModel):

@@ -1,7 +1,23 @@
 "use client";
 
-import type { Chart, Term } from "@/lib/api";
+import type { Chart, DignityState, Term } from "@/lib/api";
 import type { Language } from "./SouthIndianChart";
+
+/** Colour by how well the graha is placed, so the two extremes read at a
+ *  glance — which is how they read on a printed jathagam. */
+const DIGNITY_STYLE: Record<DignityState, string> = {
+  exalted:
+    "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+  moolatrikona:
+    "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400",
+  own: "bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
+  great_friend: "bg-sky-50 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
+  friend: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  neutral: "text-slate-500 dark:text-slate-400",
+  enemy: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
+  debilitated: "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300",
+  undefined: "text-slate-400 dark:text-slate-500",
+};
 
 /**
  * The planetary positions table.
@@ -35,6 +51,9 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
             <th className="py-2 pr-3 font-medium">Nakshatra</th>
             <th className="py-2 pr-3 text-center font-medium">Pada</th>
             <th className="py-2 pr-3 text-center font-medium">Bhava</th>
+            <th className="py-2 pr-3 font-medium">
+              {lang === "ta" ? "நிலை" : "Dignity"}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -51,6 +70,8 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
             </td>
             <td className="py-2 pr-3 text-center">{chart.lagna.pada}</td>
             <td className="py-2 pr-3 text-center">1</td>
+            {/* The lagna is a point, not a graha, so it has no dignity. */}
+            <td className="py-2 pr-3 text-slate-300 dark:text-slate-600">—</td>
           </tr>
 
           {chart.grahas.map((g) => {
@@ -72,10 +93,20 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
                   </span>
                   {showRetro && (
                     <span
-                      title="Retrograde"
+                      title="Retrograde · வக்ரம்"
                       className="ml-2 rounded bg-rose-100 px-1 text-xs font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-400"
                     >
                       ℞
+                    </span>
+                  )}
+                  {g.combust && (
+                    <span
+                      title={`Combust · அஸ்தங்கதம் — within ${Math.abs(
+                        g.position.longitude - chart.grahas[0].position.longitude,
+                      ).toFixed(0)}° of the Sun`}
+                      className="ml-1 rounded bg-orange-100 px-1 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-400"
+                    >
+                      ☌
                     </span>
                   )}
                 </td>
@@ -93,6 +124,23 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
                 </td>
                 <td className="py-2 pr-3 text-center">{g.position.pada}</td>
                 <td className="py-2 pr-3 text-center">{g.house}</td>
+                <td className="py-2 pr-3">
+                  {g.dignity === "undefined" ? (
+                    <span
+                      className="text-slate-300 dark:text-slate-600"
+                      title={g.dignity_reason}
+                    >
+                      —
+                    </span>
+                  ) : (
+                    <span
+                      title={g.dignity_reason}
+                      className={`inline-block cursor-help rounded px-1.5 py-0.5 text-sm ${DIGNITY_STYLE[g.dignity]}`}
+                    >
+                      {label(g.dignity_name, lang)}
+                    </span>
+                  )}
+                </td>
               </tr>
             );
           })}

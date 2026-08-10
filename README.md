@@ -220,6 +220,7 @@ AstroApp/
 │  │  ├─ birthdata.py         UT1 handling, historical timezones, DST folds
 │  │  ├─ places.py            offline place search, Tamil script
 │  │  ├─ positions.py         grahas, lagna, retrogradation
+│  │  ├─ dignity.py           உச்சம்/நீசம், moolatrikona, friendships, combustion
 │  │  ├─ zodiac.py            rasi/nakshatra data + Tamil lexicon
 │  │  └─ angles.py            normalisation, DMS formatting
 │  ├─ jyotish/charts/vargas.py    D9 Navamsam + the Shodashavarga
@@ -278,10 +279,13 @@ an afterthought. Read them in this order:
 2. **[ayanamsa.md](docs/ayanamsa.md)** — the four systems and which to choose.
    The one setting where a wrong value produces a chart that looks entirely
    normal and is wrong throughout.
-3. **[02-dasha.md](docs/02-dasha.md)** — the astrology of *when*. Vimshottari
+3. **[01-dignity.md](docs/01-dignity.md)** — உச்சம் and நீசம். Whether a
+   placement is a good one, and the two other states a chart marks — வக்ரம்
+   (retrograde) and அஸ்தங்கதம் (combust).
+4. **[02-dasha.md](docs/02-dasha.md)** — the astrology of *when*. Vimshottari
    from zero, and why one arcsecond of Moon is three and a half hours of
    printed date.
-4. **[03-panchangam.md](docs/03-panchangam.md)** — the daily almanac: the five
+5. **[03-panchangam.md](docs/03-panchangam.md)** — the daily almanac: the five
    limbs, rahu kalam, gowri panchangam, நல்ல நேரம், and the Tamil calendar.
 
 Reference texts worth having alongside: B.V. Raman, *Hindu Predictive
