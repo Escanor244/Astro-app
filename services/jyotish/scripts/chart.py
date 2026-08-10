@@ -25,11 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import _env  # noqa: E402  -- must follow the path bootstrap above
 
 try:
+    from jyotish.charts import vargas
     from jyotish.core import ayanamsa as ay
     from jyotish.core import places as places_db
     from jyotish.core import positions as pos
     from jyotish.core.angles import format_dms, format_zodiacal
-    from jyotish.core.birthdata import BirthData
+    from jyotish.core.birthdata import BirthData, format_time_12h, parse_time
     from jyotish.core.zodiac import GRAHAS, NAKSHATRAS, RASIS
 except ImportError:
     # Almost always the system Python rather than the project venv.
@@ -48,13 +49,24 @@ SOUTH_INDIAN_GRID = [
 ]
 
 
-def draw_south_indian(chart: pos.ChartPositions, lang: str = "en") -> str:
+def draw_south_indian(
+    lagna_rasi: int,
+    graha_rasis: dict[int, int],
+    retrogrades: set[int] | frozenset[int],
+    lang: str = "en",
+) -> str:
+    """Render a South Indian square chart.
+
+    Takes placements rather than a birth record, so the same renderer draws the
+    Rasi chart and every varga -- a divisional chart is the same fixed grid with
+    grahas mapped to different rasis.
+    """
     occupants: dict[int, list[str]] = {i: [] for i in range(12)}
-    for gi, gp in chart.grahas.items():
+    for gi, rasi in graha_rasis.items():
         mark = GRAHAS[gi].en[:2]
-        if gp.retrograde and gi not in (7, 8):
+        if gi in retrogrades and gi not in (7, 8):
             mark += "ʀ"
-        occupants[gp.position.rasi].append(mark)
+        occupants[rasi].append(mark)
 
     cell_w, cell_h = 15, 4
     lines: list[str] = []
@@ -66,8 +78,8 @@ def draw_south_indian(chart: pos.ChartPositions, lang: str = "en") -> str:
                 cell = [" " * cell_w] * cell_h
             else:
                 label = RASIS[rasi].ta if lang == "ta" else RASIS[rasi].en[:12]
-                asc = " <ASC" if rasi == chart.lagna.rasi else ""
-                house = f"{(rasi - chart.lagna.rasi) % 12 + 1}"
+                asc = " <ASC" if rasi == lagna_rasi else ""
+                house = f"{(rasi - lagna_rasi) % 12 + 1}"
                 cell = [
                     f" {label}{asc}".ljust(cell_w),
                     f" [{house}]".ljust(cell_w),
@@ -120,7 +132,8 @@ def resolve_place(query: str, pick: int | None):
 def main() -> None:
     p = argparse.ArgumentParser(description="Cast a Vedic jathagam.")
     p.add_argument("--date", required=True, help="local birth date, YYYY-MM-DD")
-    p.add_argument("--time", required=True, help="local birth time, HH:MM or HH:MM:SS")
+    p.add_argument("--time", required=True,
+                   help='local birth time: 24-hour "18:30", or "6:30 PM"')
     p.add_argument("--place", help='birth place, e.g. "Madurai" (Tamil script works too)')
     p.add_argument("--pick", type=int, help="choose the Nth place when several match")
     p.add_argument("--lat", type=float, help="latitude, if entering coordinates directly")
@@ -131,13 +144,31 @@ def main() -> None:
     p.add_argument("--ayanamsa", default="lahiri",
                    choices=[a.value for a in ay.Ayanamsa])
     p.add_argument("--lang", default="en", choices=["en", "ta"])
+    p.add_argument("--varga", default="d1",
+                   help="divisional charts to draw, comma-separated, "
+                        'e.g. "d1,d9" for Rasi plus Navamsam. Use "all" for the '
+                        f"full Shodashavarga. Known: {','.join(v.lower() for v in vargas.VARGA_ORDER)}")
     args = p.parse_args()
 
     if not args.place and (args.lat is None or args.lon is None):
         p.error("give either --place, or both --lat and --lon")
 
-    fmt = "%Y-%m-%d %H:%M:%S" if args.time.count(":") == 2 else "%Y-%m-%d %H:%M"
-    when = datetime.strptime(f"{args.date} {args.time}", fmt)
+    requested = (
+        list(vargas.VARGA_ORDER) if args.varga.strip().lower() == "all"
+        else [v.strip().upper() for v in args.varga.split(",") if v.strip()]
+    )
+    for code in requested:
+        if code not in vargas.VARGAS:
+            p.error(f"unknown varga {code!r}; known: "
+                    f"{', '.join(v.lower() for v in vargas.VARGA_ORDER)}")
+
+    try:
+        hour, minute, second = parse_time(args.time)
+        birth_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        p.error(str(exc))
+    when = datetime(birth_date.year, birth_date.month, birth_date.day,
+                    hour, minute, second)
 
     if args.place:
         place = resolve_place(args.place, args.pick)
@@ -166,7 +197,11 @@ def main() -> None:
     chart = pos.compute(birth, ay.Ayanamsa(args.ayanamsa))
 
     note = birth.offset_note
-    print(f"\nBirth   : {birth.when:%Y-%m-%d %H:%M:%S}")
+    # Always echo the 12-hour reading. Someone who meant an evening birth and
+    # typed "06:30" should see "6:30 AM" here and catch it before reading a
+    # chart whose lagna is half a zodiac out.
+    print(f"\nBirth   : {birth.when:%Y-%m-%d}  {birth.when:%H:%M:%S}  "
+          f"({format_time_12h(hour, minute, second)})")
     print(f"Place   : {place_line}")
     print(f"Zone    : {birth.zone.key}")
     print(f"Offset  : {format_offset(birth.utc_offset)}"
@@ -188,7 +223,13 @@ def main() -> None:
               f"{format_zodiacal(z.longitude):>13}  {NAKSHATRAS[z.nakshatra].en:<18}"
               f"{z.pada:>5}{chart.house_of(gi):>4}  {'R' if gp.retrograde else ''}")
 
-    print(f"\n{draw_south_indian(chart, args.lang)}\n")
+    for code in requested:
+        vc = vargas.compute(chart, code)
+        name = vc.varga.name
+        print(f"\n{vc.varga.code}  {name.en} / {name.ta} ({name.ta_latin}) "
+              f"kattam -- {vc.varga.significance}")
+        print(draw_south_indian(vc.lagna_rasi, vc.graha_rasis, vc.retrogrades, args.lang))
+    print()
 
 
 if __name__ == "__main__":

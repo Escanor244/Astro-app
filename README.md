@@ -54,6 +54,12 @@ Cast a chart:
 python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 ```
 
+Add the Navamsam (நவாம்சம்) beside the Rasi chart:
+
+```bash
+python scripts\chart.py --date 1990-05-15 --time "6:30 AM" --place "Chennai" --pick 1 --varga d1,d9
+```
+
 Tamil script works as input — `--place "மதுரை"` resolves to Madurai. The first
 chart also downloads the DE440s ephemeris kernel (~31 MB) into `data/`. If your
 network blocks NASA's host, fetch it manually:
@@ -62,9 +68,14 @@ network blocks NASA's host, fetch it manually:
 curl -o data/de440s.bsp https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp
 ```
 
-Useful flags: `--ayanamsa {lahiri,true_chitrapaksha,kp,raman}`, `--lang {en,ta}`,
+Useful flags: `--varga d1,d9` or `--varga all` for divisional charts,
+`--ayanamsa {lahiri,true_chitrapaksha,kp,raman}`, `--lang {en,ta}`,
 `--tz Asia/Kolkata` to override the zone, `--fold 1` for the second occurrence of
 a repeated hour, and `--lat`/`--lon` for exact coordinates instead of a place.
+
+**Birth time is 24-hour by default**, so `06:30` is the morning and `18:30` the
+evening. `"6:30 PM"` works too, and the output always echoes back which one it
+understood — an AM/PM slip moves the lagna about 180°.
 
 ### Place entry and timezones
 
@@ -95,15 +106,17 @@ With the venv activated (see [Quick start](#quick-start)):
 python -m pytest tests\ -q
 ```
 
-164 tests. These are not smoke tests — they compare every graha longitude,
-the lagna, and every nakshatra pada against an independent Swiss Ephemeris
-oracle across 20 birth charts. **If these fail, do not ship.** The target
-audience includes practising astrologers, for whom one wrong pada is
-disqualifying.
+267 tests, about 30 seconds. These are not smoke tests — they compare every
+graha longitude, the lagna, and every nakshatra pada against an independent
+Swiss Ephemeris oracle across 20 birth charts, and cross-check all sixteen
+divisional charts against a second implementation. **If these fail, do not
+ship.** The target audience includes practising astrologers, for whom one wrong
+pada is disqualifying.
 
-**[docs/TESTING.md](docs/TESTING.md)** is the full guide: what the tolerances
-mean, a manual checklist for place and timezone behaviour, how to cross-check
-against Jagannatha Hora, and how to read a failure from its shape.
+**[docs/testing/](docs/testing/)** holds a testing guide per phase — what the
+tolerances mean, manual checklists, and how to cross-check against Jagannatha
+Hora. **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** is the place to
+look when something breaks.
 
 ---
 
@@ -174,22 +187,32 @@ AstroApp/
 │  │  ├─ positions.py         grahas, lagna, retrogradation
 │  │  ├─ zodiac.py            rasi/nakshatra data + Tamil lexicon
 │  │  └─ angles.py            normalisation, DMS formatting
+│  ├─ jyotish/charts/vargas.py    D9 Navamsam + the Shodashavarga
 │  ├─ scripts/chart.py        CLI jathagam
 │  ├─ scripts/build_places_db.py   GeoNames -> SQLite index
-│  └─ tests/                  accuracy gate, places, timezones
-├─ docs/                      learning path + TESTING.md
+│  └─ tests/                  accuracy gate, vargas, places, timezones
+├─ docs/
+│  ├─ 00-orientation.md       learning path
+│  ├─ ARCHITECTURE.md         stack decisions and rationale
+│  ├─ TROUBLESHOOTING.md      when something breaks
+│  └─ testing/                one testing guide per phase
 └─ data/                      DE440s kernel, places index (both gitignored)
 ```
 
 Two languages is deliberate: Python owns the astronomy (Skyfield and
 `jyotishganit` have no serious JS equivalent), Next.js will own the PWA.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
 
 ## Build phases
 
 - [x] **Phase 0 — Accuracy foundation.** Ephemeris, ayanamsa, grahas, lagna,
       pada, and the validation harness. *Gate met.*
-- [ ] **Phase 1 — Core jathagam.** South Indian SVG chart, D1–D60 vargas,
-      dignity, combustion, geocoding UI.
+- [x] **Phase 0.5 — Place search & timezones.** Offline GeoNames index with
+      Tamil script, historical offsets, DST edge cases.
+- [x] **Phase 1a — Divisional charts.** D9 Navamsam and the full
+      Shodashavarga; AM/PM birth-time entry.
+- [ ] **Phase 1b — Web UI.** Next.js PWA, South Indian chart as SVG,
+      birth-data form on the places API.
 - [ ] **Phase 2 — Dasha & Panchangam.** Vimshottari to 5 levels; Tamil
       panchangam, rahu kalam, nalla neram.
 - [ ] **Phase 3 — KP module.** 249 sub-lords, Placidus cusps, significators,

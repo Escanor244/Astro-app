@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from jyotish.core.birthdata import BirthData
+from jyotish.core.birthdata import BirthData, format_time_12h, parse_time
 
 
 def _at(when: datetime, zone: str, fold: int = 0, lat: float = 13.0827,
@@ -137,3 +137,79 @@ def test_dst_is_annotated_for_diaspora_births() -> None:
     birth = _at(datetime(1988, 7, 21, 3, 45), "Europe/London", lat=51.5074, lon=-0.1278)
     assert birth.utc_offset == timedelta(hours=1)
     assert "daylight saving" in (birth.offset_note or "")
+
+
+# --- birth time entry -------------------------------------------------------
+#
+# Twelve hours of error moves the ascendant by roughly 180 degrees, so an
+# AM/PM mistake produces a chart that is wrong in every particular while looking
+# entirely plausible. Same class of silent failure as the DST cases above.
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("06:30", (6, 30, 0)),          # bare times are 24-hour
+        ("18:30", (18, 30, 0)),
+        ("6:30 AM", (6, 30, 0)),
+        ("6:30 PM", (18, 30, 0)),
+        ("6:30pm", (18, 30, 0)),        # no space
+        ("6:30 p.m.", (18, 30, 0)),     # dotted
+        ("  6:30 Pm  ", (18, 30, 0)),   # whitespace and case
+        ("18:30:45", (18, 30, 45)),
+        ("12:00 AM", (0, 0, 0)),        # midnight
+        ("12:00 PM", (12, 0, 0)),       # noon
+        ("12:01 AM", (0, 1, 0)),
+        ("00:00", (0, 0, 0)),
+        ("23:59:59", (23, 59, 59)),
+    ],
+)
+def test_parse_time(text: str, expected: tuple[int, int, int]) -> None:
+    assert parse_time(text) == expected
+
+
+def test_twelve_hour_and_twenty_four_hour_agree() -> None:
+    assert parse_time("6:30 PM") == parse_time("18:30")
+    assert parse_time("6:30 AM") == parse_time("06:30")
+
+
+@pytest.mark.parametrize("text", ["13:30 PM", "0:30 AM", "25:00", "6:70", "13:00 am"])
+def test_contradictory_or_invalid_times_are_rejected(text: str) -> None:
+    """Refuse to guess. '13:30 PM' could mean 13:30 or 01:30."""
+    with pytest.raises(ValueError):
+        parse_time(text)
+
+
+@pytest.mark.parametrize("text", ["", "630", "6.30", "six thirty", "6:30:00:00"])
+def test_unreadable_times_are_rejected(text: str) -> None:
+    with pytest.raises(ValueError, match="Cannot read time"):
+        parse_time(text)
+
+
+@pytest.mark.parametrize(
+    "hour,minute,expected",
+    [(0, 0, "12:00 AM"), (6, 30, "6:30 AM"), (12, 0, "12:00 PM"),
+     (18, 30, "6:30 PM"), (23, 59, "11:59 PM")],
+)
+def test_format_time_12h(hour: int, minute: int, expected: str) -> None:
+    assert format_time_12h(hour, minute) == expected
+
+
+def test_am_pm_error_moves_the_lagna_half_a_zodiac() -> None:
+    """Why this is a correctness feature and not a convenience.
+
+    The same clock reading taken as morning and as evening gives lagnas about
+    six rasis apart -- here Taurus versus Scorpio, exact opposites.
+    """
+    from jyotish.core import ayanamsa as ay
+    from jyotish.core import positions as pos
+
+    def lagna_rasi_for(text: str) -> int:
+        h, m, s = parse_time(text)
+        birth = BirthData(
+            when=datetime(1990, 5, 15, h, m, s),
+            latitude=13.0827, longitude=80.2707, timezone_name="Asia/Kolkata",
+        )
+        return pos.compute(birth, ay.Ayanamsa.LAHIRI).lagna.rasi
+
+    morning, evening = lagna_rasi_for("6:30 AM"), lagna_rasi_for("6:30 PM")
+    assert (evening - morning) % 12 == 6, "expected opposite rasis"

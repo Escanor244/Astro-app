@@ -213,68 +213,129 @@ Case 15 is the one to understand: the two readings are an hour apart, which is
 **about 15° of lagna** — often a different rasi entirely. The app must never
 pick one silently.
 
-### Regression guard
+### Does entering a place change the chart?
 
-Place search is an input convenience; it must not change the astronomy. The
-authoritative check is automated, because it compares against GeoNames'
-full-precision coordinates:
+It must not — and this test proves it.
+
+**The idea.** There are two ways to tell the app where someone was born:
+
+```bash
+--place "Chennai"                    # by name
+--lat 13.0878 --lon 80.2785          # by coordinates
+```
+
+Typing a place name is only a *shortcut for looking up its coordinates*. Once
+found, the engine does the identical calculation either way. So both commands
+must produce exactly the same chart — same lagna, same graha degrees, same
+padas.
+
+**Why we test it.** Place search was added after the astronomy was already
+validated. This test is the proof that adding it did not disturb anything. If it
+ever fails, place lookup is feeding in different coordinates than it should —
+which would mean charts silently changed depending on how the birth was entered.
+
+**Run it:**
 
 ```bash
 python -m pytest tests\test_places.py -q -k identical_charts
 ```
 
-`test_place_and_coordinates_give_identical_charts` asserts every graha longitude
-and the lagna match **exactly**.
-
-Comparing by hand is still useful, but note that the CLI *displays* coordinates
-rounded to four decimals, so re-entering those printed values gives a lagna about
-0.04″ different. That is the rounding, not a bug — four decimals is roughly 11
-metres, and 11 metres is 0.04″ of ascendant. It is a good sanity check on how
-little coordinate precision actually matters:
+**A note if you compare by hand.** The CLI *displays* coordinates rounded to
+four decimals, so if you copy the printed numbers into `--lat`/`--lon` you will
+see a lagna about 0.04″ different. That is the rounding, not a bug: four decimal
+places is about 11 metres, and 11 metres of ground is 0.04″ of ascendant. It is
+a good demonstration of how little coordinate precision actually matters:
 
 ```bash
 python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 python scripts\chart.py --date 1990-05-15 --time 06:30 --lat 13.0878 --lon 80.2785
 ```
 
+The automated test is the authoritative one because it uses GeoNames'
+full-precision coordinates, not the rounded display values.
+
 ---
 
-## 7. Adding a new test chart
+## 7. Adding a birth chart to the test suite
 
-Add a tuple to `FIXTURES` in
-`tests/validation/test_positions_vs_swisseph.py`:
+Say you want the suite to check *your own* birth details every time it runs.
+That takes one line.
+
+### What a "fixture" is
+
+A **fixture** here is just one birth record that the tests check. There are
+currently 20 of them, listed in a Python list called `FIXTURES` in
+`tests/validation/test_positions_vs_swisseph.py`.
+
+Each one is a row of five values:
 
 ```python
-("label-here", datetime(1985, 3, 21, 14, 30), 11.0168, 76.9558, "Asia/Kolkata"),
+("chennai-1990", datetime(1990, 5, 15, 6, 30), 13.0827, 80.2707, "Asia/Kolkata")
+#      1                     2                     3         4          5
 ```
 
-No expected values are written by hand — the oracle supplies them, and all four
-test functions pick the fixture up automatically. Good additions are cases that
-stress something: an unusual timezone, a birth near midnight, a graha sitting on
-a rasi or pada boundary.
+| # | Value | Meaning |
+|---|---|---|
+| 1 | `"chennai-1990"` | A short name, so you can tell which chart failed |
+| 2 | `datetime(1990, 5, 15, 6, 30)` | Birth date and time: year, month, day, hour, minute — **24-hour clock** |
+| 3 | `13.0827` | Latitude (negative for south) |
+| 4 | `80.2707` | Longitude (negative for west) |
+| 5 | `"Asia/Kolkata"` | Timezone name |
 
-## 8. Setup troubleshooting
+### The part that surprises people
 
-Environment problems, as opposed to astronomy problems. Almost all of them are
-one thing wearing different hats: **the virtualenv is not activated.**
+**You do not write down what the chart should be.**
 
-| Symptom | Cause and fix |
-|---|---|
-| `ModuleNotFoundError: No module named 'skyfield'` (or `timezonefinder`) | System Python, not the venv. Activate it — §2. The suite now detects this and prints which interpreter it is using instead of a traceback. |
-| `'.venv' is not recognized as an internal or external command` | Forward slashes on cmd.exe. Use `.venv\Scripts\...` with backslashes. |
-| `Activate.ps1 cannot be loaded because running scripts is disabled` | PowerShell execution policy. `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`, then activate again. |
-| `pip install` succeeded but imports still fail | Installed with one interpreter, running with another. Check `python -c "import sys; print(sys.executable)"` — it should be under `.venv`. |
-| `ModuleNotFoundError: No module named 'jyotish'` | The engine package is not on `sys.path`. `scripts/chart.py` handles this itself and runs from any directory; a *new* script needs the same bootstrap at its top. |
-| `PlacesDatabaseMissing` when using `--place` | Place index not built. `python scripts\build_places_db.py`. |
-| `tests/test_places.py` all skipped | Same — expected on a fresh clone. |
-| Tamil script prints as `?????` on Windows | Console encoding. `set PYTHONIOENCODING=utf-8`, or use Windows Terminal. Does not affect correctness. |
+That feels wrong at first — surely a test needs an expected answer? But writing
+expected degrees by hand would only test that we can copy numbers accurately.
 
-A note on the first row, because it caused a real lost session: `pip install`
-into the venv followed by bare `python` is the classic trap. Installing with an
-explicit interpreter path works, but every later bare `python` is the system one.
-Activating once makes all of them correct.
+Instead, each test takes your birth record and computes the answer **twice**:
+once with our engine, and once with Swiss Ephemeris, a completely separate
+implementation. Then it compares them. That is what "the oracle supplies the
+expected values" means — the oracle is the second implementation, and it
+produces the expected answer on the spot.
 
-## 9. Reading a failure
+So you supply *a birth*, not *a chart*.
+
+### Steps
+
+1. Open `services/jyotish/tests/validation/test_positions_vs_swisseph.py`.
+2. Find the list called `FIXTURES`.
+3. Add a line in the same shape, before the closing `]`:
+
+   ```python
+   ("my-birth", datetime(1996, 11, 23, 14, 5), 9.9252, 78.1198, "Asia/Kolkata"),
+   ```
+
+   Note the trailing comma, and remember the hour is 24-hour — `14` is 2 PM.
+4. Run the suite:
+
+   ```bash
+   python -m pytest tests\validation\test_positions_vs_swisseph.py -q
+   ```
+
+Your chart is now checked by all four tests automatically: graha longitudes, the
+lagna, nakshatra and pada, and Ketu's opposition to Rahu. Nothing else to write.
+
+To see your fixture by name:
+
+```bash
+python -m pytest tests\validation -v -k my-birth
+```
+
+### What makes a good addition
+
+Fixtures earn their place by stressing something the others don't:
+
+- a timezone with daylight saving, or an unusual historical offset
+- a birth near midnight, where the date itself is in play
+- a birth in the southern hemisphere, or at high latitude
+- a graha sitting very close to a rasi or pada boundary
+
+A twenty-first ordinary Indian daytime birth adds little; the twenty existing
+ones already cover that.
+
+## 8. Reading a failure
 
 Four bug signatures already found in this codebase. The *shape* of an error
 identifies its cause far faster than staring at the code:
@@ -293,7 +354,7 @@ second of clock time and Saturn ~0.001″, dividing each body's error by its dai
 motion should give the *same* number of seconds. When it does, you have a clock
 problem, not an astronomy problem.
 
-## 10. Known limitations
+## 9. Known limitations
 
 - **Date range: 1849–2150.** DE440s covers this. For charts outside it, set
   `ASTROAPP_EPHEMERIS=de440.bsp` (~114 MB, 1550–2650).
@@ -305,3 +366,9 @@ problem, not an astronomy problem.
   below birth-time precision. It does *not* matter for rectification work, where
   you should pass exact `--lat`/`--lon`.
 - **The oracle is Moshier-backed** for the Moon — see §4.
+
+---
+
+**Next:** [phase-1a.md](phase-1a.md) covers the D9 Navamsam and divisional
+charts. For anything that breaks, see
+[../TROUBLESHOOTING.md](../TROUBLESHOOTING.md).

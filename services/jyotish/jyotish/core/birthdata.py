@@ -24,6 +24,69 @@ from zoneinfo import ZoneInfo
 from timezonefinder import TimezoneFinder
 
 
+def parse_time(text: str) -> tuple[int, int, int]:
+    """Parse a birth time, accepting both 24-hour and AM/PM forms.
+
+    Accepts ``18:30``, ``6:30 PM``, ``6:30pm``, ``06:30 AM``, ``18:30:45``.
+    A bare time is 24-hour, so ``06:30`` means the morning.
+
+    This matters more than it looks. Getting AM/PM wrong shifts the birth by
+    twelve hours, which moves the ascendant by roughly 180 degrees -- a
+    completely different lagna, a different dasha balance, and a chart that is
+    wrong in every particular while looking entirely plausible. It is the same
+    class of silent error as an unresolved daylight-saving ambiguity, so it is
+    handled the same way: accept both notations, and refuse contradictions
+    rather than guessing.
+
+    Returns:
+        (hour, minute, second) on a 24-hour clock.
+
+    Raises:
+        ValueError: if the text cannot be read, or says something like
+            "13:30 PM".
+    """
+    raw = text.strip().lower().replace(".", "")
+
+    meridiem = None
+    for suffix in ("am", "pm"):
+        if raw.endswith(suffix):
+            meridiem = suffix
+            raw = raw[: -len(suffix)].strip()
+            break
+
+    parts = raw.split(":")
+    if not 2 <= len(parts) <= 3:
+        raise ValueError(f"Cannot read time {text!r}. Use HH:MM, or 6:30 PM.")
+    try:
+        hour, minute = int(parts[0]), int(parts[1])
+        second = int(parts[2]) if len(parts) == 3 else 0
+    except ValueError:
+        raise ValueError(f"Cannot read time {text!r}. Use HH:MM, or 6:30 PM.") from None
+
+    if meridiem:
+        if not 1 <= hour <= 12:
+            raise ValueError(
+                f"{text!r} is contradictory: with AM/PM the hour must be 1-12. "
+                f"Did you mean {hour:02d}:{minute:02d} on a 24-hour clock?"
+            )
+        if meridiem == "am" and hour == 12:      # 12 AM is midnight
+            hour = 0
+        elif meridiem == "pm" and hour != 12:    # 12 PM is already noon
+            hour += 12
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+        raise ValueError(f"{text!r} is not a valid time.")
+    return hour, minute, second
+
+
+def format_time_12h(hour: int, minute: int, second: int = 0) -> str:
+    """'6:30 AM' -- shown beside the 24-hour value so a mis-entry is obvious."""
+    suffix = "AM" if hour < 12 else "PM"
+    display_hour = hour % 12 or 12
+    tail = f":{second:02d}" if second else ""
+    return f"{display_hour}:{minute:02d}{tail} {suffix}"
+
+
 @lru_cache(maxsize=1)
 def _tz_finder() -> TimezoneFinder:
     return TimezoneFinder()
