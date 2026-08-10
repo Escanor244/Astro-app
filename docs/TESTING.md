@@ -1,0 +1,263 @@
+# Testing guide
+
+How to check that this engine is telling the truth — automatically, and by hand
+against software a practising astrologer already trusts.
+
+The guiding principle: **for our audience, a wrong chart is worse than no
+chart.** A consumer app can survive a rough prediction. An astrologer who spots
+one wrong nakshatra pada will never open the app again. So accuracy is tested
+first, before anything is built on top of it.
+
+---
+
+## 1. What you can test today
+
+| Area | Status |
+|---|---|
+| Ayanamsa (4 systems) | ✅ testable |
+| Graha longitudes, lagna, rasi, nakshatra, pada | ✅ testable |
+| Retrogradation | ✅ testable |
+| Place search, incl. Tamil script | ✅ testable |
+| Timezones, historical offsets, DST edge cases | ✅ testable |
+| Divisional charts (D2–D60) | ⏳ Phase 1 |
+| Vimshottari dasha | ⏳ Phase 2 |
+| Panchangam, rahu kalam, nalla neram | ⏳ Phase 2 |
+| KP sub-lords, ruling planets, horary | ⏳ Phase 3 |
+| Porutham, doshams | ⏳ Phase 4 |
+| Predictions | ⏳ Phase 5 |
+
+There is no web UI yet — everything is exercised through `scripts/chart.py`.
+
+## 2. Setup
+
+```bash
+cd services/jyotish
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+```
+
+Two data artifacts are downloaded, not committed:
+
+```bash
+python scripts/build_places_db.py
+```
+
+That fetches GeoNames and builds `data/places.sqlite` (~98 MB, 786,101 places).
+The DE440s ephemeris kernel (~31 MB) downloads automatically on first chart.
+
+## 3. Running the automated suite
+
+```bash
+python -m pytest tests/ -q
+```
+
+**Expect 162 passing, roughly 60–90 seconds.** Breakdown:
+
+- `tests/validation/test_ayanamsa_vs_swisseph.py` — 4 ayanamsa systems × 8 epochs
+- `tests/validation/test_positions_vs_swisseph.py` — 20 birth charts, every graha
+- `tests/test_places.py` — search ranking, Tamil script, timezone agreement
+- `tests/test_timezones.py` — historical offsets and DST edge cases
+
+Useful variations:
+
+```bash
+python -m pytest tests/validation/ -q            # accuracy gate only
+python -m pytest tests/ -q -k tamil              # one topic
+python -m pytest tests/ -v -k chennai            # see individual fixture names
+```
+
+If `tests/test_places.py` reports **skipped**, the place index has not been
+built. That is expected on a fresh clone.
+
+## 4. What the tolerances mean
+
+Everything is compared against **pyswisseph**, an independent implementation
+used purely as an oracle. It is a dev dependency, never shipped.
+
+| Quantity | Gate | Actual worst |
+|---|---|---|
+| Ayanamsa — Lahiri, KP, Raman | 1.0″ | **0.004″** |
+| Ayanamsa — True Chitrapaksha | 0.5″ | 0.27″ |
+| Graha longitudes (not Moon) | 1.0″ | **0.82″** |
+| Moon | 3.0″ | ~2.0″ |
+| Lagna | 1.0″ | **0.004″** |
+| Nakshatra & pada | exact | exact |
+
+### Why the Moon gets a looser gate
+
+Not because our Moon is worse — because **the oracle's is**.
+
+`pyswisseph` ships without its `.se1` data files, so it silently falls back to
+Moshier's analytical theory, which is accurate to only ~1–3″ for the Moon. Our
+DE440s figure is sub-arcsecond. Where the two disagree on the Moon, **we are the
+more accurate source.**
+
+This is pinned by `test_oracle_backend_is_declared`, which asserts the fallback
+is in effect. If someone later installs the real Swiss ephemeris files, that
+test fails loudly and `MOON_TOLERANCE_ARCSEC` should be tightened to 1.0.
+
+For a genuine sub-arcsecond lunar check, use Jagannatha Hora — see next section.
+
+### Putting arcseconds in perspective
+
+A nakshatra pada is 3°20′ = 12,000″. Our worst graha deviation of 0.82″ is
+**0.007% of a pada.** Birth times are recorded to the minute at best, and one
+minute of clock error moves the lagna by roughly 900″. The astronomy is far
+below the noise floor of the input data — which is the point.
+
+---
+
+## 5. Cross-checking against Jagannatha Hora
+
+This is the real test. Jagannatha Hora is free, bundles genuine Swiss ephemeris
+files, and is what serious Jyotish practitioners actually use. If our output
+matches JHora, the engine is trustworthy.
+
+**Setup (once):**
+
+1. Download Jagannatha Hora from [vedicastrologer.org](https://www.vedicastrologer.org/jh/).
+2. `Preferences → Ayanamsa` → **Lahiri (Chitrapaksha)**.
+3. `Preferences → Chart style` → **South Indian**.
+4. `Preferences → Node type` → **Mean node** (we use mean; see below).
+
+**Comparing a chart:**
+
+```bash
+python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
+```
+
+Enter the same date, time and place in JHora, then compare:
+
+| Check | Where in JHora |
+|---|---|
+| Lagna degree & nakshatra | main chart header |
+| Each graha's degree-in-rasi | the planetary positions table |
+| Nakshatra and pada for each graha | same table |
+| Ayanamsa value | shown in the chart info panel |
+
+**What counts as agreement:** degrees should match to the displayed precision
+(typically arcseconds). **Padas must match exactly, with no exceptions.**
+
+**Two settings that will produce false mismatches:**
+
+- **True vs mean node.** We use the *mean* lunar node, as Vedic practice and KP
+  both do. If JHora is set to true node, Rahu and Ketu will differ by up to
+  about 1.5° — a real difference in convention, not an error.
+- **Ayanamsa.** Lahiri and True Chitrapaksha differ by about 1′; KP differs from
+  Lahiri by 5′49″. Confirm both sides use the same one.
+
+Worth doing for at least two charts: one modern Indian birth, one diaspora birth
+with daylight saving in play.
+
+---
+
+## 6. Manual checklist: place search and timezones
+
+Run each of these and confirm the described behaviour.
+
+### Place search
+
+| # | Command | Expect |
+|---|---|---|
+| 1 | `--place "Chennai" --pick 1` | Chennai, Tamil Nadu, India — pop 4.6M, *not* a hamlet |
+| 2 | `--place "மதுரை"` | Madurai — Tamil script resolves |
+| 3 | `--place "கோயம்புத்தூர்"` | Coimbatore |
+| 4 | `--place "Trichy" --pick 1` | Tiruchirappalli (pop 1M), not the pop-0 namesake |
+| 5 | `--place "Madu"` | numbered list, **Madurai first** — not the pop-0 hamlet that matches exactly |
+| 6 | `--place "Kumbakonam"` | resolves — small-town coverage |
+| 7 | `--place "Zzzzqqqq"` | clean "no place matching" message, not a traceback |
+| 8 | `--place "London"` | London UK ranked above London, Ontario |
+
+### Timezone display
+
+| # | Command | Expect in the `Offset` line |
+|---|---|---|
+| 9 | `--date 1990-05-15 --time 06:30 --place "Chennai" --pick 1` | `UTC+05:30`, no annotation |
+| 10 | `--date 1943-03-12 --time 11:20 --place "Chennai" --pick 1` | `UTC+06:30  [wartime India, 1942-09-01 to 1945-10-15]` |
+| 11 | `--date 1899-06-07 --time 09:30 --place "Chennai" --pick 1` | `UTC+05:21:10  [MMT, local mean time…]` |
+| 12 | `--date 1988-07-21 --time 03:45 --place "London" --pick 1` | `UTC+01:00  [daylight saving in force…]` |
+| 13 | add `--tz Asia/Singapore` to #9 | `UTC+08:00` — the override wins |
+
+### Daylight-saving edge cases
+
+| # | Command | Expect |
+|---|---|---|
+| 14 | `--date 1997-04-06 --time 02:30 --place "San Francisco" --pick 1` | ⚠ warning: **time does not exist** (clocks jumped forward) |
+| 15 | `--date 2010-11-07 --time 01:30 --place "Trenton" --pick 1` | ⚠ warning: **occurs twice**, showing both offsets |
+| 16 | same as #15 with `--fold 1` | uses `UTC-05:00` instead of `UTC-04:00` |
+
+Case 15 is the one to understand: the two readings are an hour apart, which is
+**about 15° of lagna** — often a different rasi entirely. The app must never
+pick one silently.
+
+### Regression guard
+
+Place search is an input convenience; it must not change the astronomy. The
+authoritative check is automated, because it compares against GeoNames'
+full-precision coordinates:
+
+```bash
+python -m pytest tests/test_places.py -q -k identical_charts
+```
+
+`test_place_and_coordinates_give_identical_charts` asserts every graha longitude
+and the lagna match **exactly**.
+
+Comparing by hand is still useful, but note that the CLI *displays* coordinates
+rounded to four decimals, so re-entering those printed values gives a lagna about
+0.04″ different. That is the rounding, not a bug — four decimals is roughly 11
+metres, and 11 metres is 0.04″ of ascendant. It is a good sanity check on how
+little coordinate precision actually matters:
+
+```bash
+python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
+python scripts/chart.py --date 1990-05-15 --time 06:30 --lat 13.0878 --lon 80.2785
+```
+
+---
+
+## 7. Adding a new test chart
+
+Add a tuple to `FIXTURES` in
+`tests/validation/test_positions_vs_swisseph.py`:
+
+```python
+("label-here", datetime(1985, 3, 21, 14, 30), 11.0168, 76.9558, "Asia/Kolkata"),
+```
+
+No expected values are written by hand — the oracle supplies them, and all four
+test functions pick the fixture up automatically. Good additions are cases that
+stress something: an unusual timezone, a birth near midnight, a graha sitting on
+a rasi or pada boundary.
+
+## 8. Reading a failure
+
+Four bug signatures already found in this codebase. The *shape* of an error
+identifies its cause far faster than staring at the code:
+
+| Signature | Cause |
+|---|---|
+| Every graha off by the **same constant** | Ayanamsa — wrong system, or wrong constant |
+| Error **oscillates ±17″** across dates | Nutation — true vs mean equinox frame confusion |
+| Error **scales with each body's speed** (Moon worst, Saturn least) | Time-scale error — UT1/UTC/TT, Delta-T, or timezone |
+| Lagna off by **exactly 180°** | `atan2` argument signs |
+| **One body** off, others fine | That body's target name or ephemeris source |
+| Pada wrong but degree right | Boundary arithmetic in `zodiac.resolve()` |
+
+The time-scale one is worth internalising: because the Moon moves ~0.55″ per
+second of clock time and Saturn ~0.001″, dividing each body's error by its daily
+motion should give the *same* number of seconds. When it does, you have a clock
+problem, not an astronomy problem.
+
+## 9. Known limitations
+
+- **Date range: 1849–2150.** DE440s covers this. For charts outside it, set
+  `ASTROAPP_EPHEMERIS=de440.bsp` (~114 MB, 1550–2650).
+- **Mean lunar node only.** True node is not yet implemented.
+- **Thirukanitham panchangam only.** Vakya is not implemented and is a research
+  project in its own right — it is not derivable from a modern ephemeris.
+- **Place coordinates are city-centre points.** GeoNames gives one coordinate
+  per place; a birth across town differs by a few arcseconds of ascendant, far
+  below birth-time precision. It does *not* matter for rectification work, where
+  you should pass exact `--lat`/`--lon`.
+- **The oracle is Moshier-backed** for the Moon — see §4.

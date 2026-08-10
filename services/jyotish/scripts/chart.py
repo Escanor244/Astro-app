@@ -1,6 +1,6 @@
 """Print a jathagam from the command line.
 
-    python scripts/chart.py --date 1990-05-15 --time 06:30 --lat 13.0827 --lon 80.2707
+    python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai"
 
 This exists so the engine is inspectable before any UI exists, and so a
 practising astrologer can diff our output against Jagannatha Hora directly.
@@ -9,9 +9,11 @@ practising astrologer can diff our output against Jagannatha Hora directly.
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import datetime
 
 from jyotish.core import ayanamsa as ay
+from jyotish.core import places as places_db
 from jyotish.core import positions as pos
 from jyotish.core.angles import format_dms, format_zodiacal
 from jyotish.core.birthdata import BirthData
@@ -63,31 +65,96 @@ def draw_south_indian(chart: pos.ChartPositions, lang: str = "en") -> str:
     return "\n".join(lines)
 
 
+def format_offset(delta) -> str:
+    """'UTC+06:30' -- including the odd historical offsets that are not whole hours."""
+    total = int(delta.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    total = abs(total)
+    h, m, s = total // 3600, (total % 3600) // 60, total % 60
+    return f"UTC{sign}{h:02d}:{m:02d}" + (f":{s:02d}" if s else "")
+
+
+def resolve_place(query: str, pick: int | None):
+    """Turn a place query into a single Place, or exit with the candidate list."""
+    try:
+        matches = places_db.search(query, limit=10)
+    except places_db.PlacesDatabaseMissing as exc:
+        sys.exit(f"\n{exc}\n")
+
+    if not matches:
+        sys.exit(f"\nNo place matching {query!r}. Try fewer letters, or use --lat/--lon.\n")
+
+    if pick is not None:
+        if not 1 <= pick <= len(matches):
+            sys.exit(f"\n--pick must be between 1 and {len(matches)}.\n")
+        return matches[pick - 1]
+
+    if len(matches) > 1:
+        print(f"\n{len(matches)} places match {query!r}. Re-run with --pick N:\n")
+        for i, m in enumerate(matches, 1):
+            print(f"  {i:>2}. {m.display_name:<48} {m.latitude:8.4f} {m.longitude:9.4f}"
+                  f"  {m.timezone:<18} pop {m.population:,}")
+        print()
+        sys.exit(0)
+
+    return matches[0]
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Cast a Vedic jathagam.")
     p.add_argument("--date", required=True, help="local birth date, YYYY-MM-DD")
     p.add_argument("--time", required=True, help="local birth time, HH:MM or HH:MM:SS")
-    p.add_argument("--lat", type=float, required=True)
-    p.add_argument("--lon", type=float, required=True)
-    p.add_argument("--tz", default=None, help="IANA zone; derived from coordinates if omitted")
+    p.add_argument("--place", help='birth place, e.g. "Madurai" (Tamil script works too)')
+    p.add_argument("--pick", type=int, help="choose the Nth place when several match")
+    p.add_argument("--lat", type=float, help="latitude, if entering coordinates directly")
+    p.add_argument("--lon", type=float, help="longitude, if entering coordinates directly")
+    p.add_argument("--tz", default=None, help="IANA zone override, e.g. Asia/Kolkata")
+    p.add_argument("--fold", type=int, default=0, choices=[0, 1],
+                   help="for a repeated hour at the end of summer time: 0=first, 1=second")
     p.add_argument("--ayanamsa", default="lahiri",
                    choices=[a.value for a in ay.Ayanamsa])
     p.add_argument("--lang", default="en", choices=["en", "ta"])
     args = p.parse_args()
 
+    if not args.place and (args.lat is None or args.lon is None):
+        p.error("give either --place, or both --lat and --lon")
+
     fmt = "%Y-%m-%d %H:%M:%S" if args.time.count(":") == 2 else "%Y-%m-%d %H:%M"
-    birth = BirthData(
-        when=datetime.strptime(f"{args.date} {args.time}", fmt),
-        latitude=args.lat,
-        longitude=args.lon,
-        timezone_name=args.tz,
-    )
+    when = datetime.strptime(f"{args.date} {args.time}", fmt)
+
+    if args.place:
+        place = resolve_place(args.place, args.pick)
+        birth = BirthData.from_place(place, when, timezone_name=args.tz, fold=args.fold)
+        place_line = f"{place.display_name}  ({place.latitude:.4f}, {place.longitude:.4f})"
+    else:
+        birth = BirthData(when=when, latitude=args.lat, longitude=args.lon,
+                          timezone_name=args.tz, fold=args.fold)
+        place_line = f"{birth.latitude:.4f}, {birth.longitude:.4f}"
+
+    # Surface time-zone edge cases before showing any chart. An hour of doubt is
+    # about 15 degrees of ascendant, so a silently-chosen interpretation could
+    # hand the user a chart with the wrong lagna and no hint anything was wrong.
+    if birth.time_is_nonexistent:
+        print(f"\n  !! {when:%Y-%m-%d %H:%M} does not exist in {birth.zone.key} -- "
+              "the clocks jumped forward over it.\n     Check the birth record; the "
+              "chart below assumes the pre-transition offset.")
+    elif birth.time_is_ambiguous:
+        other = birth.alternative
+        print(f"\n  !! {when:%Y-%m-%d %H:%M} occurs twice in {birth.zone.key} "
+              "(clocks went back).\n     Using --fold "
+              f"{birth.fold} = {format_offset(birth.utc_offset)}; the other reading is "
+              f"{format_offset(other.utc_offset)}.\n     These give lagnas about 15 "
+              "degrees apart, so confirm which one applies.")
+
     chart = pos.compute(birth, ay.Ayanamsa(args.ayanamsa))
 
-    off = birth.utc_offset.total_seconds() / 3600.0
-    print(f"\nBirth   : {birth.when}  ({birth.zone.key}, UTC{off:+.2f})")
+    note = birth.offset_note
+    print(f"\nBirth   : {birth.when:%Y-%m-%d %H:%M:%S}")
+    print(f"Place   : {place_line}")
+    print(f"Zone    : {birth.zone.key}")
+    print(f"Offset  : {format_offset(birth.utc_offset)}"
+          + (f"   [{note}]" if note else ""))
     print(f"UTC     : {birth.utc:%Y-%m-%d %H:%M:%S}")
-    print(f"Place   : {birth.latitude:.4f}, {birth.longitude:.4f}")
     print(f"Ayanamsa: {chart.ayanamsa_system.value}  {format_dms(chart.ayanamsa_value)}")
 
     lagna = chart.lagna

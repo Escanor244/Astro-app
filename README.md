@@ -22,21 +22,50 @@ python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
 ```
 
+Build the place index once (~98 MB, 786,101 places):
+
+```bash
+python scripts/build_places_db.py
+```
+
 Cast a chart:
 
 ```bash
-python scripts/chart.py --date 1990-05-15 --time 06:30 --lat 13.0827 --lon 80.2707
+python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 ```
 
-The first run downloads the DE440s ephemeris kernel (~31 MB) into `data/`.
-If your network blocks NASA's host, fetch it manually:
+Tamil script works as input — `--place "மதுரை"` resolves to Madurai. The first
+chart also downloads the DE440s ephemeris kernel (~31 MB) into `data/`. If your
+network blocks NASA's host, fetch it manually:
 
 ```bash
 curl -o data/de440s.bsp https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp
 ```
 
 Useful flags: `--ayanamsa {lahiri,true_chitrapaksha,kp,raman}`, `--lang {en,ta}`,
-`--tz Asia/Kolkata` (otherwise derived from the coordinates).
+`--tz Asia/Kolkata` to override the zone, `--fold 1` for the second occurrence of
+a repeated hour, and `--lat`/`--lon` for exact coordinates instead of a place.
+
+### Place entry and timezones
+
+Birth data is entered by place name, because nobody knows the latitude of the
+village they were born in. Coverage is GeoNames `cities500` worldwide *plus every
+Indian populated place*, so Tamil Nadu villages resolve rather than forcing users
+back to coordinates. It is fully offline: no API key, no network on the input
+path, and GeoNames supplies the IANA timezone for each place directly.
+
+The offset actually applied is always shown, and annotated when it is not the one
+you would expect:
+
+```
+Offset  : UTC+06:30   [wartime India, 1942-09-01 to 1945-10-15]
+Offset  : UTC+05:21:10 [MMT, local mean time before standard zones were adopted]
+```
+
+Daylight-saving edge cases are surfaced rather than guessed. A local time that
+never happened (clocks jumped forward) or happened twice (clocks went back) both
+raise a warning — an hour of ambiguity is roughly **15° of lagna**, frequently a
+different rasi.
 
 ## Running the accuracy gate
 
@@ -45,11 +74,15 @@ cd services/jyotish
 .venv/Scripts/python.exe -m pytest tests/ -q
 ```
 
-121 tests. These are not smoke tests — they compare every graha longitude,
+162 tests. These are not smoke tests — they compare every graha longitude,
 the lagna, and every nakshatra pada against an independent Swiss Ephemeris
 oracle across 20 birth charts. **If these fail, do not ship.** The target
 audience includes practising astrologers, for whom one wrong pada is
 disqualifying.
+
+**[docs/TESTING.md](docs/TESTING.md)** is the full guide: what the tolerances
+mean, a manual checklist for place and timezone behaviour, how to cross-check
+against Jagannatha Hora, and how to read a failure from its shape.
 
 ---
 
@@ -115,14 +148,16 @@ AstroApp/
 │  ├─ jyotish/core/
 │  │  ├─ ephemeris.py         Skyfield/DE440s loading, licence rationale
 │  │  ├─ ayanamsa.py          Lahiri, True Chitrapaksha, KP, Raman
-│  │  ├─ birthdata.py         UT1 handling, historical timezones
+│  │  ├─ birthdata.py         UT1 handling, historical timezones, DST folds
+│  │  ├─ places.py            offline place search, Tamil script
 │  │  ├─ positions.py         grahas, lagna, retrogradation
 │  │  ├─ zodiac.py            rasi/nakshatra data + Tamil lexicon
 │  │  └─ angles.py            normalisation, DMS formatting
 │  ├─ scripts/chart.py        CLI jathagam
-│  └─ tests/validation/       the accuracy gate
-├─ docs/                      learning path (start at 00-orientation.md)
-└─ data/                      DE440s kernel (gitignored)
+│  ├─ scripts/build_places_db.py   GeoNames -> SQLite index
+│  └─ tests/                  accuracy gate, places, timezones
+├─ docs/                      learning path + TESTING.md
+└─ data/                      DE440s kernel, places index (both gitignored)
 ```
 
 Two languages is deliberate: Python owns the astronomy (Skyfield and
@@ -150,3 +185,10 @@ an afterthought. Start at [docs/00-orientation.md](docs/00-orientation.md).
 Reference texts worth having alongside: B.V. Raman, *Hindu Predictive
 Astrology*; K.S. Krishnamurti, *Readers 1–6* (the primary KP source); and
 Jagannatha Hora's bundled help, which is excellent and free.
+
+## Credits
+
+Place data © [GeoNames](https://www.geonames.org/), licensed
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Planetary ephemeris: NASA JPL DE440s (public domain).
+Astronomy: [Skyfield](https://rhodesmill.org/skyfield/) (MIT).

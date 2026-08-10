@@ -63,6 +63,12 @@ FIXTURES = [
     ("kualalumpur-1993",    datetime(1993, 6, 18, 8, 22),    3.1390, 101.6869, "Asia/Kuala_Lumpur"),
     ("london-1988-bst",     datetime(1988, 7, 21, 3, 45),   51.5074,  -0.1278, "Europe/London"),
     ("london-1988-gmt",     datetime(1988, 1, 21, 3, 45),   51.5074,  -0.1278, "Europe/London"),
+    # Both of the next two sit on daylight-saving transitions and are kept
+    # deliberately: newjersey-2010 01:30 occurs twice, sanfrancisco-1997 02:30
+    # never occurred at all. They pass here because we and the oracle derive the
+    # same UTC instant, which is exactly the point -- the *astronomy* agrees
+    # regardless. Whether the instant is the intended one is a separate
+    # question, covered by tests/test_timezones.py.
     ("newjersey-2010",      datetime(2010, 11, 7, 1, 30),   40.0583, -74.4057, "America/New_York"),
     ("sanfrancisco-1997",   datetime(1997, 4, 6, 2, 30),    37.7749,-122.4194, "America/Los_Angeles"),
     ("toronto-2015",        datetime(2015, 3, 8, 3, 15),    43.6532, -79.3832, "America/Toronto"),
