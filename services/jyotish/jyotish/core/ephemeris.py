@@ -19,6 +19,7 @@ historical charts outside that window.
 
 from __future__ import annotations
 
+import functools
 import os
 import threading
 from pathlib import Path
@@ -77,3 +78,27 @@ def get_kernel(name: str | None = None):
 def get_earth(kernel_name: str | None = None):
     """The Earth barycentric position object used as our observer origin."""
     return get_kernel(kernel_name)["earth"]
+
+
+@functools.lru_cache(maxsize=4)
+def covered_years(kernel_name: str | None = None) -> tuple[int, int]:
+    """First and last year the loaded kernel can actually compute.
+
+    Read from the kernel's own segments rather than hardcoded, because the
+    kernel is configurable: DE440s spans 1849-2150 in 32 MB, while
+    ``ASTROAPP_EPHEMERIS=de440.bsp`` swaps in 1550-2650. A hardcoded range would
+    reject dates the user has deliberately made available, or accept dates that
+    then fail deep inside Skyfield.
+
+    The bounds are pulled inward by a year so a date near the edge cannot fail
+    once a time zone offset and Delta-T are applied.
+    """
+    segments = get_kernel(kernel_name).spk.segments
+    start_jd = max(s.start_jd for s in segments)
+    end_jd = min(s.end_jd for s in segments)
+
+    # JD 2451545.0 is 2000-01-01; 365.25 days a year is close enough to place
+    # a boundary year, and the inward margin absorbs the imprecision.
+    start_year = int(2000 + (start_jd - 2451545.0) / 365.25) + 1
+    end_year = int(2000 + (end_jd - 2451545.0) / 365.25) - 1
+    return start_year, end_year

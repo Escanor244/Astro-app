@@ -41,3 +41,45 @@ html.dark {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Printing: one A4 sheet per chart.
+   Ctrl+P (or the Print button) gives a usable paper chart without needing the
+   SVG download. Colours are forced on, because a South Indian chart uses the
+   highlighted cell to mark the lagna and browsers drop backgrounds by default —
+   which would silently remove the single most important marker on the page. */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  :root {
+    font-size: 11pt;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Controls, forms and anything interactive have no meaning on paper. */
+  .no-print {
+    display: none !important;
+  }
+
+  .print-chart {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-chart + .print-chart {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

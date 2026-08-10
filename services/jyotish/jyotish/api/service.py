@@ -96,9 +96,14 @@ def build_birth(req: models.ChartRequest) -> tuple[BirthData, tuple[int, int, in
             place, when, timezone_name=req.timezone, fold=req.fold
         )
     elif req.latitude is not None and req.longitude is not None:
+        # place_name is carried rather than looked up. A saved record supplies
+        # the place it resolved to at save time, so opening it does not depend
+        # on the place index still holding that id -- and the exported sheet
+        # still names the birth place rather than showing bare coordinates.
         birth = BirthData(
             when=when, latitude=req.latitude, longitude=req.longitude,
             timezone_name=req.timezone, fold=req.fold, name=req.name,
+            place_name=req.place_name or None,
         )
     else:
         raise ValueError("Provide either geonameid, or both latitude and longitude.")
@@ -235,6 +240,9 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
 
 
 def metadata() -> models.MetaResponse:
+    from ..core.ephemeris import covered_years
+
+    first_year, last_year = covered_years()
     return models.MetaResponse(
         engine_version=ENGINE_VERSION,
         ayanamsas=models.all_ayanamsas(),
@@ -249,5 +257,10 @@ def metadata() -> models.MetaResponse:
         rasis=[term(r) for r in RASIS],
         nakshatras=[term(n) for n in NAKSHATRAS],
         grahas=[term(g) for g in GRAHAS],
-        ephemeris_range="1849-2150 (DE440s)",
+        # Read from the loaded kernel, not hardcoded: the kernel is
+        # configurable, and a fixed string would misreport under an
+        # ASTROAPP_EPHEMERIS override.
+        ephemeris_range=f"{first_year}-{last_year}",
+        first_year=first_year,
+        last_year=last_year,
     )

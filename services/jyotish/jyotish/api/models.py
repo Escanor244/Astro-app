@@ -28,6 +28,31 @@ from ..core import ayanamsa as ay
 AyanamsaName = Literal["lahiri", "true_chitrapaksha", "kp", "raman"]
 
 
+def _check_year(value: DateType) -> DateType:
+    """Reject a date the loaded ephemeris cannot compute.
+
+    Shared by charts and saved records. Without it on records, an out-of-range
+    date saved happily and then failed with 422 on every attempt to open it --
+    a record in the library that could never be read, which is worse than a
+    refused save because the user finds out later and cannot tell which field
+    is wrong.
+
+    The bound comes from the kernel actually loaded, not a constant: DE440s
+    covers 1849-2150, and ``ASTROAPP_EPHEMERIS=de440.bsp`` extends that to
+    1550-2650.
+    """
+    from ..core.ephemeris import covered_years
+
+    first, last = covered_years()
+    if not first <= value.year <= last:
+        raise ValueError(
+            f"{value.isoformat()} is outside the range this ephemeris covers "
+            f"({first}-{last}). Set ASTROAPP_EPHEMERIS=de440.bsp for a wider "
+            "span, then restart the engine."
+        )
+    return value
+
+
 class TermOut(BaseModel):
     """A Jyotish term in each script the UI may want to show.
 
@@ -67,6 +92,8 @@ class ChartRequest(BaseModel):
     """A birth record, as a user would enter it."""
 
     date: DateType = Field(description="Local birth date at the birth place")
+
+    _check_date = field_validator("date")(_check_year)
     time: str = Field(
         description='Local birth time. 24-hour "18:30", or "6:30 PM". '
                     "A bare time is 24-hour.",
@@ -79,6 +106,12 @@ class ChartRequest(BaseModel):
     )
     latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
     longitude: float | None = Field(default=None, ge=-180.0, le=180.0)
+    place_name: str | None = Field(
+        default=None, max_length=200,
+        description="Display name for a chart cast from coordinates. A saved "
+                    "record supplies this so its place survives without being "
+                    "re-resolved from a geonameid.",
+    )
 
     timezone: str | None = Field(
         default=None,
@@ -195,6 +228,76 @@ class ChartResponse(BaseModel):
     engine_version: str
 
 
+class RecordFields(BaseModel):
+    """The shape of a saved birth, with no validation attached.
+
+    Input rules live on :class:`RecordIn` and are deliberately *not* inherited
+    by :class:`RecordOut`. An output model describes what is already stored;
+    applying input rules to it means that tightening a rule retroactively makes
+    existing records unreadable. That is not hypothetical -- adding an ephemeris
+    range check turned one pre-existing row into a 500 on the whole list
+    endpoint, hiding every other saved chart behind it.
+
+    Rules gate what comes in. Once something is stored, it must always come back
+    out.
+    """
+
+    name: str = Field(min_length=1, max_length=120)
+    notes: str = Field(default="", max_length=2000)
+
+    birth_date: DateType
+    birth_time: str
+    fold: int = Field(default=0, ge=0, le=1)
+    ayanamsa: AyanamsaName = "lahiri"
+
+    latitude: float = Field(ge=-90.0, le=90.0)
+    longitude: float = Field(ge=-180.0, le=180.0)
+    timezone_name: str
+    place_name: str = Field(default="", max_length=200)
+    geonameid: int | None = Field(
+        default=None,
+        description="Provenance only. The coordinates above are the source of "
+                    "truth and are never re-resolved from this.",
+    )
+
+    vargas: list[str] = Field(default_factory=lambda: ["D1", "D9"])
+
+
+class RecordIn(RecordFields):
+    """A birth being saved. Everything here gates what may enter the library.
+
+    The resolved place fields are required, not optional, and are never
+    re-derived from ``geonameid`` on read: the place index is a regenerable
+    build artifact with no recorded vintage, so rebuilding it from a newer
+    GeoNames dump could otherwise move a saved chart with no user action and
+    nothing to diff against.
+    """
+
+    # Same bound as ChartRequest, so a record can never be saved that then
+    # fails to open. Applied on the way in only -- see RecordFields.
+    _check_birth_date = field_validator("birth_date")(_check_year)
+
+    @field_validator("timezone_name")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        if value not in available_timezones():
+            raise ValueError(f"Unknown timezone {value!r}.")
+        return value
+
+
+class RecordOut(RecordFields):
+    """A birth being read back. No input rules -- see RecordFields."""
+
+    id: int
+    created_at: str
+    updated_at: str
+
+
+class RecordsResponse(BaseModel):
+    records: list[RecordOut]
+    total: int
+
+
 class VargaMeta(BaseModel):
     code: str
     divisions: int
@@ -213,6 +316,10 @@ class MetaResponse(BaseModel):
     nakshatras: list[TermOut]
     grahas: list[TermOut]
     ephemeris_range: str
+    #: Inclusive year bounds a client should use for its date picker. Derived
+    #: from the loaded kernel, so it follows an ASTROAPP_EPHEMERIS override.
+    first_year: int
+    last_year: int
 
 
 def all_ayanamsas() -> list[str]:

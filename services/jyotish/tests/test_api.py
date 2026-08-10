@@ -411,6 +411,50 @@ def test_meta_gives_a_client_everything_it_needs(client) -> None:
     assert set(body["ayanamsas"]) == {"lahiri", "true_chitrapaksha", "kp", "raman"}
 
 
+def test_cors_allows_every_method_the_api_exposes(client) -> None:
+    """A preflight must succeed for PUT and DELETE.
+
+    TestClient is same-process and never sends a preflight, which is exactly
+    why PUT and DELETE shipped blocked at the browser while this suite stayed
+    green. Issuing the OPTIONS request explicitly closes that blind spot.
+    """
+    for method in ("GET", "POST", "PUT", "DELETE"):
+        r = client.options("/api/records/1", headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": method,
+        })
+        assert r.status_code == 200, f"{method} preflight rejected: {r.text}"
+        allowed = r.headers.get("access-control-allow-methods", "")
+        assert method in allowed, f"{method} missing from {allowed!r}"
+
+
+def test_meta_reports_the_real_ephemeris_range(client) -> None:
+    """Derived from the loaded kernel, not a hardcoded string.
+
+    The kernel is configurable via ASTROAPP_EPHEMERIS, so a fixed range would
+    misreport, and the date picker built from it would reject valid dates.
+    """
+    from jyotish.core.ephemeris import covered_years
+
+    first, last = covered_years()
+    body = client.get("/api/meta").json()
+    assert body["first_year"] == first
+    assert body["last_year"] == last
+    assert str(first) in body["ephemeris_range"]
+
+
+@pytest.mark.parametrize("offset", [-1, 1])
+def test_out_of_range_date_is_422(client, offset: int) -> None:
+    from jyotish.core.ephemeris import covered_years
+
+    first, last = covered_years()
+    year = first - 1 if offset < 0 else last + 1
+    r = client.post("/api/chart", json={"date": f"{year}-06-01", "time": "06:30",
+                                        **CHENNAI})
+    assert r.status_code == 422
+    assert "ephemeris" in r.text.lower() or str(first) in r.text
+
+
 def test_health(client) -> None:
     body = client.get("/api/health").json()
     assert body["status"] == "ok"

@@ -19,8 +19,14 @@ dist/
 data/*.bsp
 data/*.bpc
 data/*.dat
-# Place index (~98 MB), built by scripts/build_places_db.py
+# Place index (~98 MB), built by scripts/build_places_db.py, and the saved
+# chart library. The -wal and -shm sidecars need naming explicitly: `*.sqlite`
+# does not match them, and while the engine is running the write-ahead log
+# holds readable page images of saved birth data. Without these lines a
+# `git add .` mid-session could publish personal records to a public remote.
 data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
 data/geonames_cache/
 
 # Env

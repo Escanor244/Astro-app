@@ -122,6 +122,8 @@ export type ChartRequest = {
   geonameid?: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  /** Keeps the place name on a chart cast from coordinates, e.g. a saved record. */
+  place_name?: string | null;
   timezone?: string | null;
   fold?: number;
   ayanamsa?: string;
@@ -177,6 +179,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(detail, response.status);
   }
 
+  // 204 has no body; calling .json() on it throws. DELETE returns 204.
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
   return response.json() as Promise<T>;
 }
 
@@ -191,6 +197,58 @@ export function searchPlaces(
   return request(`/api/places?q=${encodeURIComponent(query)}&limit=10`, {
     signal,
   });
+}
+
+/** A saved birth in the library. */
+export type SavedRecord = {
+  id: number;
+  name: string;
+  notes: string;
+  birth_date: string;
+  birth_time: string;
+  fold: number;
+  ayanamsa: string;
+  latitude: number;
+  longitude: number;
+  timezone_name: string;
+  place_name: string;
+  /** Provenance only — the coordinates above are the source of truth. */
+  geonameid: number | null;
+  vargas: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type RecordInput = Omit<SavedRecord, "id" | "created_at" | "updated_at">;
+
+export function listRecords(
+  query = "",
+): Promise<{ records: SavedRecord[]; total: number }> {
+  return request(`/api/records?q=${encodeURIComponent(query)}`);
+}
+
+export function saveRecord(body: RecordInput): Promise<SavedRecord> {
+  return request<SavedRecord>("/api/records", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateRecord(
+  id: number,
+  body: RecordInput,
+): Promise<SavedRecord> {
+  return request<SavedRecord>(`/api/records/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteRecord(id: number): Promise<void> {
+  // Routed through request() like everything else. A bare fetch here ignored
+  // response.ok, so a 404 — or a CORS preflight rejection — was reported as
+  // success and the row vanished from the list while surviving on disk.
+  await request<void>(`/api/records/${id}`, { method: "DELETE" });
 }
 
 export function computeChart(body: ChartRequest): Promise<Chart> {

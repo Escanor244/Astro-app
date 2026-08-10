@@ -23,6 +23,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from ..core import places as places_db
+from ..core.birthdata import parse_time
+from ..store import records as store
 from . import models, service
 
 log = logging.getLogger("jyotish.api")
@@ -54,12 +56,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# The PWA is served from a different origin in development.
+# The PWA is served from a different origin, so every non-simple request is
+# preflighted. This list must cover every method the API actually exposes:
+# PUT and DELETE were missing when the library was added, and the browser
+# rejected them at the preflight with no request ever reaching a route. The
+# Python tests could not see it -- TestClient is same-process and never sends
+# a preflight -- so "Update saved chart" and Delete were dead in the browser
+# with a fully green suite.
+#
+# max_age is deliberately short. Browsers cache a preflight *result* per method,
+# and Starlette's 600-second default means a rejection outlives the fix for ten
+# minutes -- the API answers preflights correctly while the browser keeps
+# refusing from cache, which reads exactly like the fix not working.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    max_age=60,
 )
 
 
@@ -122,6 +136,107 @@ def search_places(
     return models.PlacesResponse(
         query=q, results=[service.place_out(p) for p in results]
     )
+
+
+# --- the chart library -------------------------------------------------------
+#
+# Records store the birth *inputs* plus the resolved place. Computed charts are
+# deliberately not stored: a chart is a pure function of its inputs and the
+# engine version, so caching one would only create a second thing that can go
+# stale. Opening a saved record re-casts it at whatever accuracy the engine has
+# now, which means a correctness fix reaches every saved chart for free.
+
+
+def _record_out(record: store.BirthRecord) -> models.RecordOut:
+    return models.RecordOut(
+        id=record.id,
+        name=record.name,
+        notes=record.notes,
+        birth_date=record.birth_date,
+        birth_time=record.birth_time,
+        fold=record.fold,
+        ayanamsa=record.ayanamsa,
+        latitude=record.latitude,
+        longitude=record.longitude,
+        timezone_name=record.timezone_name,
+        place_name=record.place_name,
+        geonameid=record.geonameid,
+        vargas=record.vargas,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _to_store(body: models.RecordIn, record_id: int | None = None) -> store.BirthRecord:
+    return store.BirthRecord(
+        id=record_id,
+        name=body.name,
+        notes=body.notes,
+        birth_date=body.birth_date.isoformat(),
+        birth_time=body.birth_time,
+        fold=body.fold,
+        ayanamsa=body.ayanamsa,
+        latitude=body.latitude,
+        longitude=body.longitude,
+        timezone_name=body.timezone_name,
+        place_name=body.place_name,
+        geonameid=body.geonameid,
+        vargas=body.vargas,
+    )
+
+
+@app.get("/api/records", response_model=models.RecordsResponse)
+def list_records(
+    q: str = Query(default="", max_length=120, description="Filter by name or place"),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> models.RecordsResponse:
+    # A row that cannot be rendered is skipped, not fatal. Belt and braces: the
+    # cause of that happening -- output models re-applying input rules -- is
+    # fixed at the model level, but one corrupt or future-incompatible row must
+    # never hide every other saved chart behind a 500.
+    out = []
+    for record in store.list_records(q, limit=limit):
+        try:
+            out.append(_record_out(record))
+        except Exception:
+            log.exception("skipping unreadable record %s", record.id)
+    return models.RecordsResponse(records=out, total=store.count())
+
+
+@app.post("/api/records", response_model=models.RecordOut, status_code=201)
+def create_record(body: models.RecordIn) -> models.RecordOut:
+    try:
+        # Parse the time here so a bad value is rejected on save rather than
+        # becoming a record that cannot be opened.
+        parse_time(body.birth_time)
+        return _record_out(store.save(_to_store(body)))
+    except (ValueError, store.LibraryError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/records/{record_id}", response_model=models.RecordOut)
+def get_record(record_id: int) -> models.RecordOut:
+    record = store.get(record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No saved record {record_id}.")
+    return _record_out(record)
+
+
+@app.put("/api/records/{record_id}", response_model=models.RecordOut)
+def update_record(record_id: int, body: models.RecordIn) -> models.RecordOut:
+    if store.get(record_id) is None:
+        raise HTTPException(status_code=404, detail=f"No saved record {record_id}.")
+    try:
+        parse_time(body.birth_time)
+        return _record_out(store.save(_to_store(body, record_id)))
+    except (ValueError, store.LibraryError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.delete("/api/records/{record_id}", status_code=204)
+def delete_record(record_id: int) -> None:
+    if not store.delete(record_id):
+        raise HTTPException(status_code=404, detail=f"No saved record {record_id}.")
 
 
 @app.post("/api/chart", response_model=models.ChartResponse)

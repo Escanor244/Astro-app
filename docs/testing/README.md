@@ -8,7 +8,7 @@ now and what is still ahead. Start with the phase you just finished.
 | 0 + 0.5 | [phase-0.md](phase-0.md) | Ephemeris, ayanamsa, grahas, lagna, nakshatra & pada, place search, timezones | ✅ done |
 | 1a | [phase-1a.md](phase-1a.md) | Divisional charts (D9 Navamsam and the Shodashavarga), AM/PM birth-time entry | ✅ done |
 | 1b | [phase-1b.md](phase-1b.md) | FastAPI service, Next.js PWA, South Indian chart as SVG, place autocomplete | ✅ done |
-| 1c | *not yet built* | Storage: saved birth records, chart library, search | ⏳ |
+| 1c | [phase-1c.md](phase-1c.md) | Saved chart library, A4 export, light/dark theme | ✅ done |
 | 2 | *not yet built* | Vimshottari dasha, Tamil panchangam, rahu kalam, nalla neram | ⏳ |
 | 3 | *not yet built* | KP: 249 sub-lords, Placidus cusps, significators, ruling planets, horary | ⏳ |
 | 4 | *not yet built* | 10 poruthams, 36-guna comparison, doshams and parihara | ⏳ |

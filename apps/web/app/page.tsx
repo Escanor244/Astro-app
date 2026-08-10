@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, type Chart, type Meta, computeChart, fetchMeta } from "@/lib/api";
+import {
+  ApiError,
+  type Chart,
+  type Meta,
+  type RecordInput,
+  type SavedRecord,
+  computeChart,
+  fetchMeta,
+  saveRecord,
+  updateRecord,
+} from "@/lib/api";
+import { downloadChart } from "@/lib/chart-export";
+import { ChartLibrary } from "@/components/ChartLibrary";
 import { BirthForm, type FormState } from "@/components/BirthForm";
 import { GrahaTable } from "@/components/GrahaTable";
 import { type Language, SouthIndianChart } from "@/components/SouthIndianChart";
@@ -26,6 +38,14 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [lang, setLang] = useState<Language>("en");
   const [hover, setHover] = useState<number | null>(null);
+
+  // Library state. `savedId` tracks which record the form currently represents,
+  // so Save updates that record rather than silently creating duplicates every
+  // time the user tweaks and re-saves.
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const [libraryKey, setLibraryKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetchMeta()
@@ -57,6 +77,94 @@ export default function Home() {
     }
   }
 
+  async function save() {
+    if (!form.place || !chart) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // The *resolved* place travels with the record, not just the geonameid.
+      // The place index is a regenerable build artifact, so re-resolving an id
+      // later could silently move a saved chart.
+      const body: RecordInput = {
+        name: form.name.trim() || form.place.name,
+        notes: "",
+        birth_date: form.date,
+        birth_time: form.time.length === 5 ? `${form.time}:00` : form.time,
+        fold: form.fold,
+        ayanamsa: form.ayanamsa,
+        latitude: form.place.latitude,
+        longitude: form.place.longitude,
+        timezone_name: form.place.timezone,
+        place_name: form.place.display_name,
+        geonameid: form.place.geonameid,
+        vargas: form.vargas,
+      };
+      const record = savedId
+        ? await updateRecord(savedId, body)
+        : await saveRecord(body);
+      setSavedId(record.id);
+      setLibraryKey((k) => k + 1);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function openRecord(record: SavedRecord) {
+    // Reconstruct the form from the record, then re-cast. The saved
+    // coordinates are used directly rather than the geonameid, which is what
+    // makes a saved chart reproducible.
+    const place = {
+      geonameid: record.geonameid ?? -1,
+      name: record.place_name.split(",")[0] ?? record.place_name,
+      display_name: record.place_name,
+      admin1: "",
+      country_code: "",
+      country_name: "",
+      latitude: record.latitude,
+      longitude: record.longitude,
+      timezone: record.timezone_name,
+      population: 0,
+    };
+    setForm({
+      name: record.name,
+      date: record.birth_date,
+      time: record.birth_time,
+      place,
+      ayanamsa: record.ayanamsa,
+      vargas: record.vargas,
+      fold: record.fold,
+    });
+    setSavedId(record.id);
+
+    setBusy(true);
+    setError(null);
+    try {
+      setChart(
+        await computeChart({
+          date: record.birth_date,
+          time: record.birth_time,
+          latitude: record.latitude,
+          longitude: record.longitude,
+          place_name: record.place_name,
+          timezone: record.timezone_name,
+          fold: record.fold,
+          ayanamsa: record.ayanamsa,
+          vargas: record.vargas,
+          name: record.name,
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not open that chart.");
+      setChart(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -68,7 +176,7 @@ export default function Home() {
             Vedic chart calculation — sidereal, South Indian, Tamil-native.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="no-print flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-500 dark:text-slate-400">Labels</span>
             <div
@@ -111,16 +219,30 @@ export default function Home() {
           document-level horizontal scroll. On a 375px phone the chart's entire
           right-hand column sat off-screen. */}
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
-        <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <BirthForm
-            meta={meta}
-            value={form}
-            onChange={setForm}
-            onSubmit={() => cast()}
-            busy={busy}
-            lang={lang}
+        <div className="min-w-0 space-y-6">
+          <section className="no-print rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <BirthForm
+              meta={meta}
+              value={form}
+              onChange={(next) => {
+                // Editing the form detaches it from the record it came from,
+                // so Save creates a new entry rather than overwriting the one
+                // the user opened.
+                if (savedId !== null) setSavedId(null);
+                setForm(next);
+              }}
+              onSubmit={() => cast()}
+              busy={busy}
+              lang={lang}
+            />
+          </section>
+
+          <ChartLibrary
+            onOpen={openRecord}
+            refreshKey={libraryKey}
+            currentId={savedId}
           />
-        </section>
+        </div>
 
         <section className="min-w-0 space-y-6">
           {error && (
@@ -140,9 +262,53 @@ export default function Home() {
 
           {chart && (
             <>
+              <div className="no-print flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving || !form.place}
+                  className="mr-auto rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+                >
+                  {saved
+                    ? "Saved ✓"
+                    : saving
+                      ? "Saving…"
+                      : savedId
+                        ? "Update saved chart"
+                        : "Save to library"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  title="One A4 page per chart"
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-amber-600 hover:text-amber-700 dark:border-slate-600 dark:text-slate-200 dark:hover:border-amber-500 dark:hover:text-amber-400"
+                >
+                  Print / Save as PDF
+                </button>
+                {meta && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      chart.charts.forEach((v, i) =>
+                        // Stagger slightly: browsers drop rapid successive
+                        // downloads triggered from one click.
+                        setTimeout(
+                          () =>
+                            downloadChart(chart, v, meta.rasis, meta.grahas, lang, form.name),
+                          i * 350,
+                        ),
+                      )
+                    }
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-amber-600 hover:text-amber-700 dark:border-slate-600 dark:text-slate-200 dark:hover:border-amber-500 dark:hover:text-amber-400"
+                  >
+                    ↓ Download all as A4
+                  </button>
+                )}
+              </div>
+
               {/* The offset actually applied, and why. A historical offset
                   moves the lagna about a rasi, so it is shown, not buried. */}
-              <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="print-chart rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
                   <div className="flex justify-between gap-4">
                     <dt className="text-slate-500 dark:text-slate-400">Birth</dt>
@@ -210,15 +376,36 @@ export default function Home() {
                 {chart.charts.map((v) => (
                   <div
                     key={v.code}
-                    className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    className="print-chart rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                   >
-                    <h2 className="mb-1 font-semibold text-slate-900 dark:text-slate-100">
-                      {v.code} · {v.name.ta}{" "}
-                      <span className="font-normal text-slate-500">
-                        {v.name.en} kattam
-                      </span>
-                    </h2>
-                    <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="mb-1 flex items-start justify-between gap-3">
+                      <h2 className="font-semibold text-slate-900 dark:text-slate-100">
+                        {v.code} · {v.name.ta}{" "}
+                        <span className="font-normal text-slate-500">
+                          {v.name.en} kattam
+                        </span>
+                      </h2>
+                      {meta && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadChart(
+                              chart,
+                              v,
+                              meta.rasis,
+                              meta.grahas,
+                              lang,
+                              form.name,
+                            )
+                          }
+                          title={`Download ${v.code} as an A4 sheet`}
+                          className="no-print shrink-0 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-amber-600 hover:text-amber-700 dark:border-slate-600 dark:text-slate-300 dark:hover:border-amber-500 dark:hover:text-amber-400"
+                        >
+                          ↓ A4
+                        </button>
+                      )}
+                    </div>
+                    <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
                       {v.significance}
                     </p>
                     {meta && (

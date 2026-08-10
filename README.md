@@ -236,7 +236,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
       Shodashavarga; AM/PM birth-time entry.
 - [x] **Phase 1b — API and web UI.** FastAPI service, Next.js PWA, South
       Indian chart as SVG, Tamil place autocomplete.
-- [ ] **Phase 1c — Storage.** PostgreSQL, saved birth records, chart library.
+- [x] **Phase 1c — Library, export, theme.** Saved birth records, A4 chart
+      export, light/dark theme, the ayanamsa guide.
 - [ ] **Phase 2 — Dasha & Panchangam.** Vimshottari to 5 levels; Tamil
       panchangam, rahu kalam, nalla neram.
 - [ ] **Phase 3 — KP module.** 249 sub-lords, Placidus cusps, significators,
