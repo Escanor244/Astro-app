@@ -156,11 +156,15 @@ most precise branch of Jyotish, it is badly served by existing apps, and
 
 ---
 
-**Try it:** cast your own chart and find your birth star.
+**Try it:** cast your own chart and find your birth star. (Activate the venv
+first — see the [README](../README.md#quick-start).)
 
 ```bash
-python scripts/chart.py --date 1990-05-15 --time 06:30 --lat 13.0827 --lon 80.2707
+python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 ```
+
+Your birth star is the Moon's nakshatra. Tamil place names work too, so
+`--place "மதுரை"` is a valid way to enter Madurai.
 
 Then run the same chart with `--ayanamsa kp` and watch every longitude shift by
 the same ~5′49″. That is ayanamsa, made visible.

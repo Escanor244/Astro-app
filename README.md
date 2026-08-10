@@ -16,22 +16,42 @@ UI yet — that is Phase 1. See [the build plan](#build-phases) below.
 
 ## Quick start
 
+**Activate the virtualenv first.** Every command below assumes it — without it,
+`python` is your system interpreter, which does not have the dependencies.
+
 ```bash
-cd services/jyotish
+cd services\jyotish
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\activate
+python -m pip install -r requirements-dev.txt
+```
+
+| Shell | Activate with |
+|---|---|
+| cmd.exe | `.venv\Scripts\activate` |
+| PowerShell | `.venv\Scripts\Activate.ps1` |
+| Git Bash | `source .venv/Scripts/activate` |
+| macOS / Linux | `source .venv/bin/activate` |
+
+If PowerShell refuses to run the activation script:
+`Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`
+
+**Check it worked** — your prompt should now start with `(.venv)`:
+
+```bash
+python -c "import skyfield, timezonefinder; print('ok')"
 ```
 
 Build the place index once (~98 MB, 786,101 places):
 
 ```bash
-python scripts/build_places_db.py
+python scripts\build_places_db.py
 ```
 
 Cast a chart:
 
 ```bash
-python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
+python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 ```
 
 Tamil script works as input — `--place "மதுரை"` resolves to Madurai. The first
@@ -69,12 +89,13 @@ different rasi.
 
 ## Running the accuracy gate
 
+With the venv activated (see [Quick start](#quick-start)):
+
 ```bash
-cd services/jyotish
-.venv/Scripts/python.exe -m pytest tests/ -q
+python -m pytest tests\ -q
 ```
 
-162 tests. These are not smoke tests — they compare every graha longitude,
+164 tests. These are not smoke tests — they compare every graha longitude,
 the lagna, and every nakshatra pada against an independent Swiss Ephemeris
 oracle across 20 birth charts. **If these fail, do not ship.** The target
 audience includes practising astrologers, for whom one wrong pada is

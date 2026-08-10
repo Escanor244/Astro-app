@@ -30,28 +30,51 @@ There is no web UI yet — everything is exercised through `scripts/chart.py`.
 
 ## 2. Setup
 
+**Activating the virtualenv is step one, not an optional nicety.** Skip it and
+`python` means your *system* interpreter, which has none of the dependencies —
+and the resulting `ModuleNotFoundError: No module named 'skyfield'` says nothing
+about the real cause.
+
 ```bash
-cd services/jyotish
+cd services\jyotish
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\activate
+python -m pip install -r requirements-dev.txt
 ```
 
-Two data artifacts are downloaded, not committed:
+| Shell | Activate with |
+|---|---|
+| cmd.exe | `.venv\Scripts\activate` |
+| PowerShell | `.venv\Scripts\Activate.ps1` |
+| Git Bash | `source .venv/Scripts/activate` |
+| macOS / Linux | `source .venv/bin/activate` |
+
+Your prompt should now begin with `(.venv)`. Confirm the environment:
 
 ```bash
-python scripts/build_places_db.py
+python -c "import skyfield, timezonefinder; print('ok')"
+```
+
+Then build the place index — data artifacts are downloaded, never committed:
+
+```bash
+python scripts\build_places_db.py
 ```
 
 That fetches GeoNames and builds `data/places.sqlite` (~98 MB, 786,101 places).
 The DE440s ephemeris kernel (~31 MB) downloads automatically on first chart.
 
+> `build_places_db.py` uses only the standard library, so it will happily run
+> under the wrong interpreter and *appear* to prove your setup is fine. It is
+> not evidence either way — trust the `import skyfield` check above.
+
 ## 3. Running the automated suite
 
 ```bash
-python -m pytest tests/ -q
+python -m pytest tests\ -q
 ```
 
-**Expect 162 passing, roughly 60–90 seconds.** Breakdown:
+**Expect 164 passing, roughly 60–90 seconds.** Breakdown:
 
 - `tests/validation/test_ayanamsa_vs_swisseph.py` — 4 ayanamsa systems × 8 epochs
 - `tests/validation/test_positions_vs_swisseph.py` — 20 birth charts, every graha
@@ -61,9 +84,9 @@ python -m pytest tests/ -q
 Useful variations:
 
 ```bash
-python -m pytest tests/validation/ -q            # accuracy gate only
-python -m pytest tests/ -q -k tamil              # one topic
-python -m pytest tests/ -v -k chennai            # see individual fixture names
+python -m pytest tests\validation -q             # accuracy gate only
+python -m pytest tests\ -q -k tamil              # one topic
+python -m pytest tests\ -v -k chennai            # see individual fixture names
 ```
 
 If `tests/test_places.py` reports **skipped**, the place index has not been
@@ -123,7 +146,7 @@ matches JHora, the engine is trustworthy.
 **Comparing a chart:**
 
 ```bash
-python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
+python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
 ```
 
 Enter the same date, time and place in JHora, then compare:
@@ -197,7 +220,7 @@ authoritative check is automated, because it compares against GeoNames'
 full-precision coordinates:
 
 ```bash
-python -m pytest tests/test_places.py -q -k identical_charts
+python -m pytest tests\test_places.py -q -k identical_charts
 ```
 
 `test_place_and_coordinates_give_identical_charts` asserts every graha longitude
@@ -210,8 +233,8 @@ metres, and 11 metres is 0.04″ of ascendant. It is a good sanity check on how
 little coordinate precision actually matters:
 
 ```bash
-python scripts/chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
-python scripts/chart.py --date 1990-05-15 --time 06:30 --lat 13.0878 --lon 80.2785
+python scripts\chart.py --date 1990-05-15 --time 06:30 --place "Chennai" --pick 1
+python scripts\chart.py --date 1990-05-15 --time 06:30 --lat 13.0878 --lon 80.2785
 ```
 
 ---
@@ -230,7 +253,28 @@ test functions pick the fixture up automatically. Good additions are cases that
 stress something: an unusual timezone, a birth near midnight, a graha sitting on
 a rasi or pada boundary.
 
-## 8. Reading a failure
+## 8. Setup troubleshooting
+
+Environment problems, as opposed to astronomy problems. Almost all of them are
+one thing wearing different hats: **the virtualenv is not activated.**
+
+| Symptom | Cause and fix |
+|---|---|
+| `ModuleNotFoundError: No module named 'skyfield'` (or `timezonefinder`) | System Python, not the venv. Activate it — §2. The suite now detects this and prints which interpreter it is using instead of a traceback. |
+| `'.venv' is not recognized as an internal or external command` | Forward slashes on cmd.exe. Use `.venv\Scripts\...` with backslashes. |
+| `Activate.ps1 cannot be loaded because running scripts is disabled` | PowerShell execution policy. `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`, then activate again. |
+| `pip install` succeeded but imports still fail | Installed with one interpreter, running with another. Check `python -c "import sys; print(sys.executable)"` — it should be under `.venv`. |
+| `ModuleNotFoundError: No module named 'jyotish'` | The engine package is not on `sys.path`. `scripts/chart.py` handles this itself and runs from any directory; a *new* script needs the same bootstrap at its top. |
+| `PlacesDatabaseMissing` when using `--place` | Place index not built. `python scripts\build_places_db.py`. |
+| `tests/test_places.py` all skipped | Same — expected on a fresh clone. |
+| Tamil script prints as `?????` on Windows | Console encoding. `set PYTHONIOENCODING=utf-8`, or use Windows Terminal. Does not affect correctness. |
+
+A note on the first row, because it caused a real lost session: `pip install`
+into the venv followed by bare `python` is the classic trap. Installing with an
+explicit interpreter path works, but every later bare `python` is the system one.
+Activating once makes all of them correct.
+
+## 9. Reading a failure
 
 Four bug signatures already found in this codebase. The *shape* of an error
 identifies its cause far faster than staring at the code:
@@ -249,7 +293,7 @@ second of clock time and Saturn ~0.001″, dividing each body's error by its dai
 motion should give the *same* number of seconds. When it does, you have a clock
 problem, not an astronomy problem.
 
-## 9. Known limitations
+## 10. Known limitations
 
 - **Date range: 1849–2150.** DE440s covers this. For charts outside it, set
   `ASTROAPP_EPHEMERIS=de440.bsp` (~114 MB, 1550–2650).

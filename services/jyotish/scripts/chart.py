@@ -11,13 +11,30 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime
+from pathlib import Path
 
-from jyotish.core import ayanamsa as ay
-from jyotish.core import places as places_db
-from jyotish.core import positions as pos
-from jyotish.core.angles import format_dms, format_zodiacal
-from jyotish.core.birthdata import BirthData
-from jyotish.core.zodiac import GRAHAS, NAKSHATRAS, RASIS
+# Put services/jyotish on the path before importing the engine.
+#
+# Running `python scripts/chart.py` puts *scripts/* on sys.path, not the project
+# root, so `import jyotish` would otherwise fail no matter which interpreter is
+# used. pytest does not need this because pytest.ini sets `pythonpath = .`.
+# Do not remove: without it the documented command only works when PYTHONPATH
+# happens to be set.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import _env  # noqa: E402  -- must follow the path bootstrap above
+
+try:
+    from jyotish.core import ayanamsa as ay
+    from jyotish.core import places as places_db
+    from jyotish.core import positions as pos
+    from jyotish.core.angles import format_dms, format_zodiacal
+    from jyotish.core.birthdata import BirthData
+    from jyotish.core.zodiac import GRAHAS, NAKSHATRAS, RASIS
+except ImportError:
+    # Almost always the system Python rather than the project venv.
+    _env.ensure_dependencies()
+    raise
 
 #: South Indian chart layout. Rasis are FIXED in this grid -- Mesham always sits
 #: at row 0, column 1 -- and it is the houses that rotate with the lagna. That
