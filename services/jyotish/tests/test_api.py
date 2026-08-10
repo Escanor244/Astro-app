@@ -152,6 +152,36 @@ def test_nonexistent_time_warns(client) -> None:
         latitude=37.7749, longitude=-122.4194, timezone="America/Los_Angeles",
     )
     assert body["time_warning"] and "never occurred" in body["time_warning"]
+    assert body["time_warning_kind"] == "nonexistent"
+
+
+@pytest.mark.parametrize("fold", [0, 1])
+def test_nonexistent_warning_states_the_offset_actually_used(client, fold: int) -> None:
+    """The prose must not contradict the offset two rows above it.
+
+    The message used to hardcode "the offset in force before the change", which
+    is only true for fold=0. Under PEP 495 a fold of 1 in a gap selects the
+    offset *after* the transition, so the same sentence was attached to two
+    charts an hour apart, one of them falsely.
+    """
+    body = chart(
+        client, date="1997-04-06", time="02:30", fold=fold,
+        latitude=37.7749, longitude=-122.4194, timezone="America/Los_Angeles",
+    )
+    assert body["birth"]["utc_offset"] in body["time_warning"]
+    assert "before the change" not in body["time_warning"]
+
+
+def test_nonexistent_time_offers_no_second_reading(client) -> None:
+    """A time that never happened has exactly one interpretation.
+
+    The UI keys its "Use the other reading" button off this field, so labelling
+    a gap time "ambiguous" would invite the user into a choice that is not real.
+    """
+    args = dict(date="1997-04-06", time="02:30", latitude=37.7749,
+                longitude=-122.4194, timezone="America/Los_Angeles")
+    assert chart(client, **args, fold=0)["time_warning_kind"] == "nonexistent"
+    assert chart(client, **args, fold=1)["time_warning_kind"] == "nonexistent"
 
 
 def test_ambiguous_time_warns_and_fold_switches_it(client) -> None:
@@ -161,6 +191,7 @@ def test_ambiguous_time_warns_and_fold_switches_it(client) -> None:
     second = chart(client, **args, fold=1)
 
     assert first["time_warning"] and "occurred twice" in first["time_warning"]
+    assert first["time_warning_kind"] == "ambiguous"
     assert first["birth"]["utc_offset"] == "UTC-04:00"
     assert second["birth"]["utc_offset"] == "UTC-05:00"
     assert first["lagna"]["longitude"] != second["lagna"]["longitude"]
@@ -232,6 +263,57 @@ def test_out_of_range_latitude_is_rejected(client) -> None:
     assert r.status_code == 422
 
 
+@pytest.mark.parametrize(
+    "zone", ["Not/AZone", "IST", "asia/kolkata", "Asia/Chennai", "GMT+5:30"]
+)
+def test_unknown_timezone_is_422_not_500(client, zone: str) -> None:
+    """ZoneInfoNotFoundError subclasses KeyError, not ValueError.
+
+    So the route's `except ValueError` missed it entirely and a typo produced a
+    bare 500 with a text/plain body the client could only render as
+    "Request failed (500)".
+    """
+    r = client.post("/api/chart", json={"date": "1990-05-15", "time": "06:30",
+                                        "latitude": 13.0, "longitude": 80.0,
+                                        "timezone": zone})
+    assert r.status_code == 422, f"{zone!r} gave {r.status_code}"
+
+
+def test_empty_timezone_falls_back_to_coordinates(client) -> None:
+    """An empty string is not a typo; it means "you decide"."""
+    r = client.post("/api/chart", json={"date": "1990-05-15", "time": "06:30",
+                                        "latitude": 13.0827, "longitude": 80.2707,
+                                        "timezone": ""})
+    assert r.status_code == 200
+    assert r.json()["birth"]["timezone"] == "Asia/Kolkata"
+
+
+def test_unexpected_errors_return_structured_json() -> None:
+    """A 500 must still be parseable, or the UI can only say "failed (500)".
+
+    Needs its own client: TestClient re-raises server exceptions by default,
+    which would bypass the very handler under test.
+    """
+    from jyotish.api import service
+
+    def boom(_req):
+        raise RuntimeError("simulated failure with C:/a/private/path")
+
+    original = service.compute_chart
+    service.compute_chart = boom
+    try:
+        with TestClient(app, raise_server_exceptions=False) as c:
+            r = c.post("/api/chart",
+                       json={"date": "1990-05-15", "time": "06:30", **CHENNAI})
+        assert r.status_code == 500
+        detail = r.json()["detail"]
+        assert "RuntimeError" in detail
+        # The exception's own message can carry paths; it must not be echoed.
+        assert "private" not in detail
+    finally:
+        service.compute_chart = original
+
+
 def test_unknown_ayanamsa_is_rejected(client) -> None:
     r = client.post("/api/chart", json={"date": "1990-05-15", "time": "06:30",
                                         **CHENNAI, "ayanamsa": "placidus"})
@@ -287,6 +369,36 @@ def test_unknown_geonameid_is_422(client) -> None:
 
 
 # --- metadata ---------------------------------------------------------------
+
+def test_graha_abbreviations_are_distinct_and_grapheme_safe(client) -> None:
+    """Tamil short forms are authored, not truncated.
+
+    Slicing Tamil at a fixed length can drop a combining mark: சந்திரன் (Moon)
+    became சந and சனி (Saturn) became சன — two plausible-looking words that are
+    neither graha, differing only in ந vs ன, one of the most confusable pairs in
+    the script. Both must survive, and no abbreviation may end on a bare mark.
+    """
+    import unicodedata
+
+    grahas = client.get("/api/meta").json()["grahas"]
+    assert len(grahas) == 9
+
+    for field in ("en_short", "ta_short"):
+        shorts = [g[field] for g in grahas]
+        assert all(shorts), f"{field} must always be populated"
+        assert len(set(shorts)) == 9, f"{field} collides: {shorts}"
+
+    by_name = {g["en"]: g for g in grahas}
+    assert by_name["Moon"]["ta_short"] == "சந்"
+    assert by_name["Saturn"]["ta_short"] == "சனி"
+    assert by_name["Sun"]["ta_short"] == "சூ"
+    assert by_name["Venus"]["ta_short"] == "சு"
+
+    for g in grahas:
+        first = unicodedata.category(g["ta_short"][0])
+        assert not first.startswith("M"), f"{g['en']} starts with a combining mark"
+        assert g["ta_short"] in g["ta"], f"{g['en']} abbreviation is not a prefix"
+
 
 def test_meta_gives_a_client_everything_it_needs(client) -> None:
     body = client.get("/api/meta").json()

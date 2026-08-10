@@ -1,7 +1,14 @@
 "use client";
 
 import type { Term, VargaChart } from "@/lib/api";
-import { BOARD, CELL, CELL_SIZE, houseOf } from "@/lib/chart-layout";
+import {
+  BOARD,
+  CELL,
+  CELL_SIZE,
+  ascLabelY,
+  houseOf,
+  occupantPositions,
+} from "@/lib/chart-layout";
 
 /**
  * The South Indian square chart (கட்டம்).
@@ -36,9 +43,16 @@ type Props = {
   highlightGraha?: number | null;
 };
 
-/** Short label for a graha: two letters in English, one syllable in Tamil. */
+/**
+ * Short label for a graha.
+ *
+ * Taken from the engine lexicon, never truncated here. Tamil letters are a base
+ * character plus combining marks, so slicing to a fixed length can drop the mark
+ * and produce a different word: சந்திரன் (Moon) became சந and சனி (Saturn)
+ * became சன — neither is a graha, and they differ only in ந vs ன.
+ */
 function grahaLabel(term: Term, lang: Language): string {
-  return lang === "ta" ? term.ta.slice(0, 2) : term.en.slice(0, 2);
+  return lang === "ta" ? term.ta_short : term.en_short;
 }
 
 export function SouthIndianChart({
@@ -136,31 +150,35 @@ export function SouthIndianChart({
             {isLagna && (
               <text
                 x={x + 5}
-                y={y + CELL_SIZE - 6}
+                y={y + ascLabelY()}
                 className="fill-amber-700 text-[9px] font-bold tracking-wide dark:fill-amber-500"
               >
                 {lang === "ta" ? "லக்னம்" : "ASC"}
               </text>
             )}
 
-            {/* Grahas, wrapped two per row so a stellium stays legible. */}
-            {here.map((gi, i) => {
+            {/* Grahas. The layout is count-aware so that a full house of nine
+                — which D2 Hora produces regularly, since it maps the whole
+                zodiac into two rasis — stays inside its own cell. */}
+            {occupantPositions(here.length, isLagna).map((slot, i) => {
+              const gi = here[i];
               const isRetro = chart.retrogrades.includes(gi) && gi !== 7 && gi !== 8;
               const isHot = highlightGraha === gi;
               return (
                 <text
                   key={gi}
-                  x={x + 8 + (i % 2) * 46}
-                  y={y + 38 + Math.floor(i / 2) * 19}
+                  x={x + slot.x}
+                  y={y + slot.y}
+                  fontSize={slot.fontSize}
                   className={
                     isHot
-                      ? "fill-amber-600 text-[14px] font-bold dark:fill-amber-400"
-                      : "fill-slate-800 text-[13px] font-medium dark:fill-slate-100"
+                      ? "fill-amber-600 font-bold dark:fill-amber-400"
+                      : "fill-slate-800 font-medium dark:fill-slate-100"
                   }
                 >
                   {grahaLabel(grahas[gi], lang)}
                   {isRetro && (
-                    <tspan className="fill-rose-500 text-[9px]" dy={-4}>
+                    <tspan fontSize={slot.fontSize * 0.7} dy={-4}>
                       ℞
                     </tspan>
                   )}

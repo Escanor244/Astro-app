@@ -36,23 +36,31 @@ export function PlaceSearch({ value, onChange }: Props) {
   const [active, setActive] = useState(0);
 
   const boxRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
+    // The controller is created here, not inside the timer, so the cleanup can
+    // abort a request that is already in flight. Previously the abort lived in
+    // the timer callback and the cleanup only cleared the timer, so selecting a
+    // place while an older request was still running let that response land
+    // afterwards, reopen the list over the completed selection, and highlight
+    // its first result — one Enter then silently swapped the birth city, which
+    // moved the lagna by degrees and the navamsa lagna by whole signs.
+    const controller = new AbortController();
+
     if (!query.trim() || value?.display_name === query) {
       setResults([]);
-      return;
+      return () => controller.abort();
     }
 
     const timer = setTimeout(async () => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
       setLoading(true);
       setError(null);
       try {
         const body = await searchPlaces(query.trim(), controller.signal);
+        // Belt and braces: even if an abort is missed, a response may only be
+        // applied while it is still the newest request.
+        if (controller.signal.aborted) return;
         setResults(body.results);
         setActive(0);
         setOpen(true);
@@ -65,7 +73,10 @@ export function PlaceSearch({ value, onChange }: Props) {
       }
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, value]);
 
   // Close on an outside click, so the list does not hang over the form.
@@ -77,6 +88,15 @@ export function PlaceSearch({ value, onChange }: Props) {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  // Keep the highlighted option in view. Only five of ten results fit, so
+  // arrowing down previously moved a selection the user could not see.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector(`#place-option-${active}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
+
   function select(place: Place) {
     onChange(place);
     setQuery(place.display_name);
@@ -85,7 +105,16 @@ export function PlaceSearch({ value, onChange }: Props) {
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
-    if (!open || results.length === 0) return;
+    if (results.length === 0) return;
+    // ArrowDown reopens a list that was dismissed with Escape but still has
+    // results, per the WAI-ARIA combobox pattern.
+    if (!open) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setActive((i) => (i + 1) % results.length);
@@ -125,7 +154,12 @@ export function PlaceSearch({ value, onChange }: Props) {
         aria-expanded={open}
         aria-autocomplete="list"
         role="combobox"
-        aria-controls="place-results"
+        // Only reference the listbox while it exists, and name the active
+        // option so a screen reader announces what arrowing lands on.
+        aria-controls={open && results.length > 0 ? "place-results" : undefined}
+        aria-activedescendant={
+          open && results.length > 0 ? `place-option-${active}` : undefined
+        }
       />
 
       {loading && (
@@ -142,13 +176,16 @@ export function PlaceSearch({ value, onChange }: Props) {
 
       {open && results.length > 0 && (
         <ul
+          ref={listRef}
           id="place-results"
           role="listbox"
+          aria-label="Matching places"
           className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
         >
           {results.map((place, i) => (
             <li
               key={place.geonameid}
+              id={`place-option-${i}`}
               role="option"
               aria-selected={i === active}
               onMouseEnter={() => setActive(i)}

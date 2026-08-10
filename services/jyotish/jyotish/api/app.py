@@ -18,8 +18,9 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from ..core import places as places_db
 from . import models, service
@@ -60,6 +61,31 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled(_request: Request, exc: Exception) -> JSONResponse:
+    """Turn any unhandled exception into structured JSON.
+
+    Without this, FastAPI returns a bare ``text/plain`` "Internal Server Error",
+    which the web client cannot parse into anything more useful than
+    "Request failed (500)". The message deliberately names the exception type
+    but not its arguments, which can carry absolute paths.
+
+    This is a backstop, not a substitute for validating at the model boundary --
+    every case reachable by a real request should already be a 4xx before it
+    gets here.
+    """
+    log.exception("unhandled error", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": (
+                f"The engine hit an unexpected {type(exc).__name__}. "
+                "This is a bug; the server log has the details."
+            )
+        },
+    )
 
 
 @app.get("/api/health")

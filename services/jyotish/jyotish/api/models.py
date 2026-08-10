@@ -18,8 +18,9 @@ from __future__ import annotations
 # shadow the type in its own annotation namespace and break Pydantic.
 from datetime import date as DateType
 from typing import Literal
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..charts import vargas
 from ..core import ayanamsa as ay
@@ -28,11 +29,20 @@ AyanamsaName = Literal["lahiri", "true_chitrapaksha", "kp", "raman"]
 
 
 class TermOut(BaseModel):
-    """A Jyotish term in each script the UI may want to show."""
+    """A Jyotish term in each script the UI may want to show.
+
+    The ``_short`` forms are always populated. They exist so a client never has
+    to truncate a name itself: Tamil letters are a base character plus combining
+    marks, and cutting at a fixed length turns சந்திரன் (Moon) into சந and சனி
+    (Saturn) into சன -- two plausible-looking words that are neither graha, and
+    that differ from each other only in ந vs ன.
+    """
 
     en: str
     ta: str
     ta_latin: str
+    en_short: str
+    ta_short: str
 
 
 class PlaceOut(BaseModel):
@@ -72,8 +82,29 @@ class ChartRequest(BaseModel):
 
     timezone: str | None = Field(
         default=None,
-        description="IANA zone override. Derived from the place when omitted.",
+        description="IANA zone override, e.g. Asia/Kolkata. Derived from the "
+                    "place when omitted.",
+        examples=["Asia/Kolkata"],
     )
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        """Reject an unknown zone here, where it becomes a clean 422.
+
+        Left to itself, ``ZoneInfo`` raises ``ZoneInfoNotFoundError``, which
+        subclasses *KeyError* rather than ValueError -- so the route's
+        ``except ValueError`` missed it and a typo like "asia/kolkata" or "IST"
+        produced a bare 500 with no usable body.
+        """
+        if value is None or not value.strip():
+            return None
+        if value not in available_timezones():
+            raise ValueError(
+                f"Unknown timezone {value!r}. Use an IANA name such as "
+                "'Asia/Kolkata'; names are case-sensitive."
+            )
+        return value
     fold: int = Field(
         default=0, ge=0, le=1,
         description="Which occurrence of a repeated hour to use at the end of "
@@ -156,6 +187,11 @@ class ChartResponse(BaseModel):
     #: Set when the local time is ambiguous or never happened. The UI must show
     #: this prominently: an hour of doubt is about 15 degrees of lagna.
     time_warning: str | None = None
+    #: Which kind of warning, so a client knows whether a second reading exists.
+    #: Only an "ambiguous" time has one; a "nonexistent" time has exactly one
+    #: interpretation, and offering to switch it would invite the user into a
+    #: choice that is not real.
+    time_warning_kind: Literal["ambiguous", "nonexistent"] | None = None
     engine_version: str
 
 

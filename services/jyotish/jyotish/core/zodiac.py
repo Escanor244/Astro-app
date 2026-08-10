@@ -25,14 +25,32 @@ PADA_SPAN = NAKSHATRA_SPAN / 4.0  # 3 deg 20 min exactly
 
 @dataclass(frozen=True)
 class Term:
-    """A Jyotish term in English, Tamil script, and romanised Tamil."""
+    """A Jyotish term in English, Tamil script, and romanised Tamil.
+
+    ``en_short`` and ``ta_short`` are the conventional abbreviations used where
+    space is tight, chiefly the cells of a square chart. They are authored here
+    rather than derived by truncation, because truncating Tamil is unsafe: the
+    script builds letters from a base character plus combining marks, so cutting
+    at a fixed length can drop the mark and silently produce a *different*
+    reading. சந்திரன் (Chandran, Moon) cut to two code points becomes சந, and
+    சனி (Sani, Saturn) becomes சன -- both valid-looking Tamil, differing only in
+    ந vs ன, and neither is the graha it stands for.
+    """
 
     en: str
     ta: str
     ta_latin: str
+    en_short: str = ""
+    ta_short: str = ""
 
     def label(self, lang: str = "en") -> str:
         return {"en": self.en, "ta": self.ta, "ta_latin": self.ta_latin}.get(lang, self.en)
+
+    def short(self, lang: str = "en") -> str:
+        """Abbreviation for a chart cell, falling back to the full name."""
+        if lang == "ta":
+            return self.ta_short or self.ta
+        return self.en_short or self.en
 
 
 # --- Grahas -----------------------------------------------------------------
@@ -41,16 +59,20 @@ class Term:
 
 SUN, MOON, MARS, MERCURY, JUPITER, VENUS, SATURN, RAHU, KETU = range(9)
 
+#: The Tamil abbreviations are the conventional ones, and they are deliberately
+#: not uniform in length: சூ (Sun) and சு (Venus) differ only by a vowel sign,
+#: while சந் (Moon) and சனி (Saturn) each need their mark to stay distinct from
+#: one another. Any mechanical truncation collapses at least one of these pairs.
 GRAHAS: tuple[Term, ...] = (
-    Term("Sun", "சூரியன்", "Suriyan"),
-    Term("Moon", "சந்திரன்", "Chandran"),
-    Term("Mars", "செவ்வாய்", "Sevvai"),
-    Term("Mercury", "புதன்", "Budhan"),
-    Term("Jupiter", "குரு", "Guru"),
-    Term("Venus", "சுக்கிரன்", "Sukkiran"),
-    Term("Saturn", "சனி", "Sani"),
-    Term("Rahu", "ராகு", "Raagu"),
-    Term("Ketu", "கேது", "Kethu"),
+    Term("Sun", "சூரியன்", "Suriyan", "Su", "சூ"),
+    Term("Moon", "சந்திரன்", "Chandran", "Mo", "சந்"),
+    Term("Mars", "செவ்வாய்", "Sevvai", "Ma", "செ"),
+    Term("Mercury", "புதன்", "Budhan", "Me", "பு"),
+    Term("Jupiter", "குரு", "Guru", "Ju", "கு"),
+    Term("Venus", "சுக்கிரன்", "Sukkiran", "Ve", "சு"),
+    Term("Saturn", "சனி", "Sani", "Sa", "சனி"),
+    Term("Rahu", "ராகு", "Raagu", "Ra", "ரா"),
+    Term("Ketu", "கேது", "Kethu", "Ke", "கே"),
 )
 
 # Sanskrit forms, used by classical rule citations where the source text names

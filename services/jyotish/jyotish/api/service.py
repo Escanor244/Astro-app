@@ -38,7 +38,10 @@ _CACHE_SIZE = 512
 
 
 def term(t: Term) -> models.TermOut:
-    return models.TermOut(en=t.en, ta=t.ta, ta_latin=t.ta_latin)
+    return models.TermOut(
+        en=t.en, ta=t.ta, ta_latin=t.ta_latin,
+        en_short=t.short("en"), ta_short=t.short("ta"),
+    )
 
 
 def zodiac_out(z: ZodiacPosition) -> models.ZodiacOut:
@@ -103,18 +106,31 @@ def build_birth(req: models.ChartRequest) -> tuple[BirthData, tuple[int, int, in
     return birth, (hour, minute, second)
 
 
-def time_warning_for(birth: BirthData) -> str | None:
-    """The daylight-saving caveats, in language a user can act on.
+def time_warning_for(birth: BirthData) -> tuple[str | None, str | None]:
+    """The daylight-saving caveats, and which kind they are.
 
     An hour of ambiguity is roughly 15 degrees of ascendant -- frequently a
     different rasi -- so this is surfaced rather than silently resolved.
+
+    Returns ``(message, kind)`` where kind is ``"ambiguous"`` or
+    ``"nonexistent"``. The kind matters to the client: only an *ambiguous* time
+    has a second reading to offer. A nonexistent time has exactly one
+    interpretation, so a UI that offers to switch it would be inviting the user
+    into a choice that does not exist.
+
+    The nonexistent message states the offset that was actually applied rather
+    than assuming one. It previously hardcoded "the offset in force before the
+    change", which is only true for fold=0 -- under PEP 495 a fold of 1 selects
+    the offset *after* the transition, so the prose contradicted the
+    ``utc_offset`` printed two rows above it.
     """
     if birth.time_is_nonexistent:
         return (
             f"{birth.when:%H:%M} on {birth.when:%d %b %Y} never occurred in "
-            f"{birth.zone.key}: the clocks jumped forward over it. The chart "
-            "assumes the offset in force before the change. Please check the "
-            "birth record."
+            f"{birth.zone.key}: the clocks jumped forward over it. This chart "
+            f"uses {format_offset(birth.utc_offset)}. Please check the birth "
+            "record -- the recorded time may be off by an hour.",
+            "nonexistent",
         )
     if birth.time_is_ambiguous:
         other = birth.alternative
@@ -123,9 +139,10 @@ def time_warning_for(birth: BirthData) -> str | None:
             f"{birth.zone.key}: the clocks went back. This chart uses "
             f"{format_offset(birth.utc_offset)}; the other reading is "
             f"{format_offset(other.utc_offset)}. They give lagnas about 15 "
-            "degrees apart, so confirm which applies."
+            "degrees apart, so confirm which applies.",
+            "ambiguous",
         )
-    return None
+    return None, None
 
 
 @lru_cache(maxsize=_CACHE_SIZE)
@@ -191,6 +208,8 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
             retrogrades=sorted(vc.retrogrades),
         ))
 
+    warning, warning_kind = time_warning_for(birth)
+
     return models.ChartResponse(
         birth=models.BirthOut(
             local_datetime=birth.when.isoformat(),
@@ -209,7 +228,8 @@ def compute_chart(req: models.ChartRequest) -> models.ChartResponse:
         lagna=zodiac_out(chart.lagna),
         grahas=grahas,
         charts=charts,
-        time_warning=time_warning_for(birth),
+        time_warning=warning,
+        time_warning_kind=warning_kind,
         engine_version=ENGINE_VERSION,
     )
 

@@ -156,6 +156,7 @@ export function BirthForm({ meta, value, onChange, onSubmit, busy, lang }: Props
                 key={code}
                 type="button"
                 onClick={() => toggleVarga(code)}
+                aria-pressed={on}
                 title={info ? `${info.name.en} — ${info.significance}` : code}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
                   on

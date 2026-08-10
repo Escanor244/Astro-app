@@ -94,8 +94,15 @@ export default function Home() {
         </div>
       )}
 
+      {/* min-w-0 on both grid items is load-bearing, not cosmetic. A CSS grid
+          item defaults to min-width:auto, so the track refuses to shrink below
+          its content's min-content width — the graha table's six columns of
+          unbreakable text forced a 580px track inside a 343px grid, and the
+          overflow escaped the table's own overflow-x-auto to become
+          document-level horizontal scroll. On a 375px phone the chart's entire
+          right-hand column sat off-screen. */}
       <div className="grid gap-8 lg:grid-cols-[22rem_1fr]">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section className="min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <BirthForm
             meta={meta}
             value={form}
@@ -106,7 +113,7 @@ export default function Home() {
           />
         </section>
 
-        <section className="space-y-6">
+        <section className="min-w-0 space-y-6">
           {error && (
             <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
               {error}
@@ -166,21 +173,27 @@ export default function Home() {
                 )}
               </div>
 
-              {/* An hour of doubt is ~15 degrees of lagna. Never silent. */}
+              {/* An hour of doubt is ~15 degrees of lagna. Never silent.
+                  The toggle appears only for an *ambiguous* time, which is the
+                  only kind with a second reading. A time that never existed has
+                  exactly one interpretation, and offering to switch it would
+                  invite the user into a choice that is not real. */}
               {chart.time_warning && (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                   <p className="font-semibold">Check this birth time</p>
                   <p className="mt-1">{chart.time_warning}</p>
-                  <button
-                    onClick={() => {
-                      const next = form.fold === 0 ? 1 : 0;
-                      setForm({ ...form, fold: next });
-                      cast(next);
-                    }}
-                    className="mt-2 rounded border border-amber-400 px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
-                  >
-                    Use the other reading
-                  </button>
+                  {chart.time_warning_kind === "ambiguous" && (
+                    <button
+                      onClick={() => {
+                        const next = form.fold === 0 ? 1 : 0;
+                        setForm({ ...form, fold: next });
+                        cast(next);
+                      }}
+                      className="mt-2 rounded border border-amber-400 px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                    >
+                      Use the other reading
+                    </button>
+                  )}
                 </div>
               )}
 

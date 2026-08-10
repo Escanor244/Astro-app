@@ -43,3 +43,54 @@ export function cellOrigin(rasi: number): { x: number; y: number } {
   const [col, row] = CELL[rasi];
   return { x: col * CELL_SIZE, y: row * CELL_SIZE };
 }
+
+/** Top of the occupant band: below the rasi name and house number. */
+const BAND_TOP = 30;
+/** Bottom margin, and the extra room the lagna cell needs for its ASC label. */
+const BAND_BOTTOM = 8;
+const ASC_LABEL_HEIGHT = 12;
+
+export type Occupant = { x: number; y: number; fontSize: number };
+
+/**
+ * Where to draw each graha inside a cell, given how many share it.
+ *
+ * This is count-aware for a reason. A fixed two-per-row layout at a fixed pitch
+ * fits exactly eight grahas in a 100-unit cell; the ninth landed 14 units past
+ * the cell's own bottom edge, inside the neighbouring rasi. Usually the next
+ * cell's opaque fill painted over it and the graha simply vanished from the
+ * chart — a South Indian chart silently missing Ketu, with nothing on screen to
+ * contradict it. Occasionally it showed through in the wrong sign instead.
+ *
+ * All nine in one cell is not exotic: D2 Hora maps the entire zodiac into just
+ * Cancer and Leo, and Rahu and Ketu always share a hora, so roughly one D2 chart
+ * in two hundred is a full house.
+ *
+ * Everything returned is guaranteed to sit inside the cell, which
+ * `chart-layout.test.ts` asserts for every count from 1 to 9.
+ */
+export function occupantPositions(count: number, isLagna = false): Occupant[] {
+  if (count <= 0) return [];
+
+  const perRow = count <= 4 ? 2 : 3;
+  const rows = Math.ceil(count / perRow);
+  const fontSize = count > 6 ? 10 : 13;
+
+  const bottom = CELL_SIZE - BAND_BOTTOM - (isLagna ? ASC_LABEL_HEIGHT : 0);
+  const band = bottom - BAND_TOP;
+  // Never exceed the natural pitch; shrink it only when the rows demand it.
+  const pitch = Math.min(fontSize + 6, band / rows);
+  const colWidth = (CELL_SIZE - 12) / perRow;
+
+  return Array.from({ length: count }, (_, i) => ({
+    x: 6 + (i % perRow) * colWidth,
+    // Baselines start one pitch below the band top so ascenders stay clear.
+    y: BAND_TOP + pitch * (Math.floor(i / perRow) + 1),
+    fontSize,
+  }));
+}
+
+/** Baseline for the lagna cell's ASC label, below the occupant band. */
+export function ascLabelY(): number {
+  return CELL_SIZE - BAND_BOTTOM + 2;
+}

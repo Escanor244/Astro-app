@@ -14,7 +14,16 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000";
 
-export type Term = { en: string; ta: string; ta_latin: string };
+export type Term = {
+  en: string;
+  ta: string;
+  ta_latin: string;
+  /** Conventional abbreviations, authored in the engine lexicon. Never
+   *  truncate a Tamil name yourself — cutting at a fixed length can drop a
+   *  combining mark and turn one graha's name into another word. */
+  en_short: string;
+  ta_short: string;
+};
 
 export type Place = {
   geonameid: number;
@@ -84,6 +93,8 @@ export type Chart = {
   grahas: Graha[];
   charts: VargaChart[];
   time_warning: string | null;
+  /** Only an "ambiguous" time has a second reading to offer. */
+  time_warning_kind: "ambiguous" | "nonexistent" | null;
   engine_version: string;
 };
 

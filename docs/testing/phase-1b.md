@@ -111,12 +111,35 @@ move; the houses rotate.** That is the opposite of the North Indian diamond.
 | 15 | 1899-06-07, 09:30, Chennai | `UTC+05:21:10` with a local-mean-time note |
 | 16 | 2010-11-07, 01:30, Trenton NJ | Amber warning: the time occurred twice, with **Use the other reading** |
 | 17 | Click **Use the other reading** | Chart recomputes an hour apart; the lagna moves ~15° |
-| 18 | 1997-04-06, 02:30, San Francisco | Warning that the time never occurred |
+| 18 | 1997-04-06, 02:30, San Francisco | Warning that the time never occurred, quoting the offset actually used, and **no** toggle button |
 | 19 | Any chart, check the header | Time echoed in 12-hour form, e.g. `06:30:00 (6:30 AM)` |
 
 Item 19 exists because a 12-hour slip moves the lagna about 180°. The web form
 uses a 24-hour picker, which removes the ambiguity at source, but the echo is
 the user's confirmation that the engine read what they meant.
+
+Item 18 is the distinction the API's `time_warning_kind` exists for. A time that
+occurred *twice* has a genuine second reading, so the toggle is offered. A time
+that *never occurred* has exactly one interpretation — offering to switch it
+would invite the user into a choice that is not real.
+
+### Crowded charts
+
+| # | Action | Expect |
+|---|---|---|
+| 23 | 2000-07-02, 18:07, Madurai, **D2** | All nine grahas in Kadagam, all inside that one cell, none spilling into Simmam |
+| 24 | Same chart, switch to **தமிழ்** | Nine distinct labels; **சந்** (Moon) and **சனி** (Saturn) both keep their marks |
+
+Item 23 is the one that shipped broken. A fixed two-per-row layout fitted exactly
+eight grahas, and the ninth was drawn below the cell — usually painted over by
+the neighbouring cell, so the chart silently lost Ketu. D2 Hora maps the whole
+zodiac into two rasis, so a full house of nine turns up in roughly one D2 chart
+in two hundred.
+
+Item 24 is the Tamil counterpart. Abbreviations used to be produced by slicing
+two characters, which cuts Tamil mid-letter: சந்திரன் became சந and சனி became
+சன — two plausible words that are neither graha, differing only in ந vs ன. They
+are now authored in the engine lexicon and shipped in the API response.
 
 ### Failure modes
 
