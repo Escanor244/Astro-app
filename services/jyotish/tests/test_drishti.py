@@ -64,11 +64,30 @@ def test_the_nodes_default_to_the_seventh_aspect():
         assert dr.aspects_rasi(node, 0, 6)
 
 
-def test_the_other_two_node_conventions_are_available():
+def test_all_four_node_conventions_are_available():
+    """Four positions found in real use, and the enum must express each.
+
+    3/7/11 in particular is the most commonly printed *Tamil* answer and was
+    missing until an evidence audit found it — an app for Tamil practice could
+    not state the Tamil position. See docs/drishti-sources.md §4.
+    """
     for node in (RAHU, KETU):
+        assert dr.houses_aspected(node, dr.NodeDrishti.SEVENTH) == (7,)
+        assert dr.houses_aspected(node, dr.NodeDrishti.THREE_SEVEN_ELEVEN) == (3, 7, 11)
         assert dr.houses_aspected(node, dr.NodeDrishti.NONE) == ()
         assert dr.houses_aspected(node, dr.NodeDrishti.FIVE_SEVEN_NINE) == (5, 7, 9)
-        assert dr.rasis_aspected(node, 0, dr.NodeDrishti.NONE) == ()
+
+
+def test_every_node_convention_that_aspects_at_all_keeps_the_seventh():
+    """No school found teaches 5 and 9, or 3 and 11, without the 7th.
+
+    jyotishganit ships exactly that — Rahu and Ketu as [5, 9] with no 7th —
+    which matches no doctrine in the audit and looks like a transcription slip.
+    This pins that we do not reproduce it.
+    """
+    for convention in dr.NodeDrishti:
+        houses = dr.houses_aspected(RAHU, convention)
+        assert houses == () or 7 in houses, convention
 
 
 def test_under_the_default_the_nodes_only_ever_look_at_each_other():

@@ -19,15 +19,29 @@ Counting is inclusive, as it always is in Jyotish: the graha's own rasi is the
 ``+ 6`` is the single easiest way to get this wrong, and it would be wrong by one
 house everywhere at once.
 
-Those six special aspects are agreed by everyone. **Rahu and Ketu are not** --
-see :class:`NodeDrishti`, which is why that setting exists rather than a
-hardcoded answer.
+**Rahu and Ketu are contested** -- see :class:`NodeDrishti`, which is why that is
+a setting rather than a hardcoded answer.
 
-This module is pure rasi arithmetic. It takes no longitudes and knows nothing of
-degrees, because Parashari drishti in Tamil practice is *whole-sign*: a graha
-looks at the whole rasi, not at a point within it. The graded partial aspects of
-the Sanskrit drishti-bala literature are a strength refinement that belongs with
-shadbala, not here.
+Two things this module deliberately does not do, both stated carefully because
+earlier versions of this docstring overstated them. See ``docs/drishti-sources.md``
+for the sources.
+
+**Whole-sign, not degree-based.** A graha looks at the whole rasi, not at a point
+within it. Every popular Tamil source states drishti in whole houses, and both
+Jagannatha Hora and jyotishganit compute it as integer rasi arithmetic. But this
+is the mainstream reading, not the only one: BPHS Ch. 26 gives *longitude*
+arithmetic and calls the house-only method the "ordinary" one, and at least one
+Tamil authority holds that a full aspect needs the bodies within 15 degrees --
+"there is no wall in the sky" at a sign boundary.
+
+**Binary, not graded.** The same BPHS verse that grants the three special aspects
+also grants *every* graha a quarter aspect on the 3rd and 10th, a half on the
+5th and 9th and three-quarters on the 4th and 8th -- so this module ships the
+exception without the scale. That is faithful rather than lazy: no Tamil source
+found uses graded aspects in ordinary chart reading, and both reference
+implementations keep chart-level drishti binary and put virupas in shadbala.
+Grading arrives with shadbala or not at all. Note the texts disagree about the
+middle of that scale anyway -- Saravali swaps the 4/8 and 5/9 fractions.
 """
 
 from __future__ import annotations
@@ -48,14 +62,32 @@ class NodeDrishti(Enum):
     each with practitioners behind it:
 
     ``SEVENTH``
-        The 7th only, which is simply the universal rule applied to the
-        நவகிரகங்கள் without an exception. **The default here.**
-    ``FIVE_SEVEN_NINE``
-        5, 7 and 9, as Jupiter has. Common in non-Tamil schools and not absent
-        from Tamil ones.
+        The 7th only -- the universal rule applied to the நவகிரகங்கள் without an
+        exception. What Jagannatha Hora computes, and the plain reading of BPHS,
+        whose aspect chapter says "all Grahas" while BPHS 3.10 counts nine of
+        them. **The default here**, on those grounds and not on a finding.
+    ``THREE_SEVEN_ELEVEN``
+        3, 7 and 11. **The most commonly printed Tamil answer** -- three
+        independent Tamil sources including Daily Thanthi. This position exists
+        in Tamil material and essentially nowhere else, which is exactly why an
+        app for Tamil practice has to be able to express it.
     ``NONE``
-        No aspect at all, on the grounds that a chaya graha has no body to cast
-        a look with.
+        No aspect at all: a நிழல் கிரகம் has no light to cast a look with. The
+        plurality on the Tamil web, and it has the strongest classical
+        counterweight behind it -- BPHS Ch. 27 confines Shadbala, of which Drik
+        Bala is one of the six, to the seven grahas from Surya to Sani.
+    ``FIVE_SEVEN_NINE``
+        5, 7 and 9, as Jupiter has. V.K. Choudhry's Systems Approach. **Not**
+        classical: nobody quoting BPHS for it has produced a verse. Note also
+        that the widely repeated claim that *KP* teaches this appears to be
+        fabricated -- KP replaces Parashari drishti with degree aspects
+        altogether and treats the nodes as agents of their conjoined and
+        aspecting planets.
+
+    A fifth position exists that this enum cannot express: Sanjay Rath gives
+    Ketu no drishti while giving Rahu the 7th, the 5th/9th and uniquely the 2nd.
+    It is not offered because nothing in the app needs asymmetric nodes yet, and
+    a setting nobody selects is a setting nobody maintains.
 
     This is deliberately *not* resolved the way node exaltation was. There the
     app shows a dash and claims nothing, because a missing dignity is a visible
@@ -71,14 +103,21 @@ class NodeDrishti(Enum):
     """
 
     SEVENTH = "seventh"
-    FIVE_SEVEN_NINE = "5_7_9"
+    THREE_SEVEN_ELEVEN = "3_7_11"
     NONE = "none"
+    FIVE_SEVEN_NINE = "5_7_9"
 
 
 DEFAULT_NODE_DRISHTI = NodeDrishti.SEVENTH
 
 #: Houses each graha looks at, counted inclusively from its own rasi. The 7th is
 #: universal; Mars, Jupiter and Saturn add two more each.
+#:
+#: The pairing is checkable and was checked: Mars 4/8 and Saturn 3/10 are mirror
+#: images, so a swap would be an easy error to inherit, but the Sanskrit of
+#: Brihat Jataka 2.13 locks the order by word sequence plus *kramaśaḥ*
+#: ("respectively"). No credible source gives the Sun, Moon, Mercury or Venus a
+#: special aspect.
 #:
 #: The nodes are not here because their answer is a policy, not a table --
 #: :func:`houses_aspected` applies :class:`NodeDrishti` for them.
@@ -95,8 +134,9 @@ NODES: frozenset[int] = frozenset({RAHU, KETU})
 
 _NODE_HOUSES: dict[NodeDrishti, tuple[int, ...]] = {
     NodeDrishti.SEVENTH: (7,),
-    NodeDrishti.FIVE_SEVEN_NINE: (5, 7, 9),
+    NodeDrishti.THREE_SEVEN_ELEVEN: (3, 7, 11),
     NodeDrishti.NONE: (),
+    NodeDrishti.FIVE_SEVEN_NINE: (5, 7, 9),
 }
 
 
