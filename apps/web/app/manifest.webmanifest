@@ -1,0 +1,17 @@
+{
+  "name": "ஜாதகம் · Jathagam",
+  "short_name": "Jathagam",
+  "description": "Vedic astrology chart calculation — sidereal, South Indian, Tamil-native.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#d97706",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

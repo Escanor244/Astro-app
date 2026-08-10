@@ -68,6 +68,23 @@ network blocks NASA's host, fetch it manually:
 curl -o data/de440s.bsp https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp
 ```
 
+### Or use the web app
+
+Two processes — the engine serves JSON, the web app serves the UI.
+
+```bash
+cd services\jyotish && .venv\Scripts\activate && python -m uvicorn jyotish.api.app:app --reload
+```
+
+```bash
+cd apps\web && npm install && npm run dev
+```
+
+Then open <http://localhost:3000>. Interactive API docs are at
+<http://127.0.0.1:8000/docs>.
+
+### CLI flags
+
 Useful flags: `--varga d1,d9` or `--varga all` for divisional charts,
 `--ayanamsa {lahiri,true_chitrapaksha,kp,raman}`, `--lang {en,ta}`,
 `--tz Asia/Kolkata` to override the zone, `--fold 1` for the second occurrence of
@@ -179,7 +196,12 @@ Worth recording, because each is invisible without a reference implementation:
 
 ```
 AstroApp/
+├─ apps/web/                  Next.js PWA
+│  ├─ app/page.tsx            birth form + chart view
+│  ├─ components/             SouthIndianChart (SVG), PlaceSearch, GrahaTable
+│  └─ lib/                    typed API client, chart geometry + its tests
 ├─ services/jyotish/          Python engine
+│  ├─ jyotish/api/            FastAPI service (models, service, app)
 │  ├─ jyotish/core/
 │  │  ├─ ephemeris.py         Skyfield/DE440s loading, licence rationale
 │  │  ├─ ayanamsa.py          Lahiri, True Chitrapaksha, KP, Raman
@@ -212,8 +234,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
       Tamil script, historical offsets, DST edge cases.
 - [x] **Phase 1a — Divisional charts.** D9 Navamsam and the full
       Shodashavarga; AM/PM birth-time entry.
-- [ ] **Phase 1b — Web UI.** Next.js PWA, South Indian chart as SVG,
-      birth-data form on the places API.
+- [x] **Phase 1b — API and web UI.** FastAPI service, Next.js PWA, South
+      Indian chart as SVG, Tamil place autocomplete.
+- [ ] **Phase 1c — Storage.** PostgreSQL, saved birth records, chart library.
 - [ ] **Phase 2 — Dasha & Panchangam.** Vimshottari to 5 levels; Tamil
       panchangam, rahu kalam, nalla neram.
 - [ ] **Phase 3 — KP module.** 249 sub-lords, Placidus cusps, significators,

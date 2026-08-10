@@ -7,7 +7,8 @@ now and what is still ahead. Start with the phase you just finished.
 |---|---|---|---|
 | 0 + 0.5 | [phase-0.md](phase-0.md) | Ephemeris, ayanamsa, grahas, lagna, nakshatra & pada, place search, timezones | ✅ done |
 | 1a | [phase-1a.md](phase-1a.md) | Divisional charts (D9 Navamsam and the Shodashavarga), AM/PM birth-time entry | ✅ done |
-| 1b | *not yet built* | Web UI: birth-data form, South Indian chart as SVG, responsive layout | ⏳ |
+| 1b | [phase-1b.md](phase-1b.md) | FastAPI service, Next.js PWA, South Indian chart as SVG, place autocomplete | ✅ done |
+| 1c | *not yet built* | Storage: saved birth records, chart library, search | ⏳ |
 | 2 | *not yet built* | Vimshottari dasha, Tamil panchangam, rahu kalam, nalla neram | ⏳ |
 | 3 | *not yet built* | KP: 249 sub-lords, Placidus cusps, significators, ruling planets, horary | ⏳ |
 | 4 | *not yet built* | 10 poruthams, 36-guna comparison, doshams and parihara | ⏳ |
@@ -23,13 +24,23 @@ now and what is still ahead. Start with the phase you just finished.
 
 ## How to run everything at once
 
-From `services/jyotish`, with the virtualenv activated:
+The engine, from `services/jyotish` with the virtualenv activated:
 
 ```bash
 python -m pytest tests\ -q
 ```
 
-**441 tests, about 10 seconds.** Every phase's automated tests live in the same
+The web app, from `apps/web`:
+
+```bash
+npm test
+npm run build
+```
+
+`npm run build` counts as a test: `next dev` tolerates type errors that a
+production build rejects.
+
+**475 Python tests (~10s) and 12 TypeScript tests (<1s).** Every phase's automated tests live in the same
 suite and all of them must pass — a later phase is never allowed to break an
 earlier one. The Phase 0 accuracy gate in particular is load-bearing: if those
 fail, nothing built on top of them can be trusted.

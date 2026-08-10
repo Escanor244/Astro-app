@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Tamil is listed first in the stack so Tamil glyphs come from Noto Sans
+     Tamil rather than a fallback with inconsistent metrics; Latin falls
+     through to Inter, which Noto Sans Tamil does not cover well. */
+  --font-sans: var(--font-tamil), var(--font-sans), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+/* Tamil script sits taller than Latin; a little extra leading stops the
+   descenders of one line touching the next in the chart cells and tables. */
+:lang(ta),
+.font-tamil {
+  line-height: 1.7;
+}
