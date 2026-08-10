@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Drive `dark:` from a class on <html> instead of the OS preference, so the
+   theme can be chosen in the app. Without this, Tailwind 4 wires `dark:` to
+   prefers-color-scheme and a toggle has nothing to switch. The `.light` class
+   is checked first so an explicit light choice beats a dark OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   /* Tamil is listed first in the stack so Tamil glyphs come from Noto Sans
      Tamil rather than a fallback with inconsistent metrics; Latin falls
@@ -10,12 +16,28 @@
 }
 
 html {
-  color-scheme: light dark;
+  /* Follows the class set by the theme script, so form controls and
+     scrollbars match the chosen theme rather than the OS one. */
+  color-scheme: light;
+  /* Slightly larger than the 16px default. Charts are read for minutes at a
+     time, often by someone comparing two numbers, and Tamil needs the extra
+     size more than Latin does. */
+  font-size: 17px;
 }
 
-/* Tamil script sits taller than Latin; a little extra leading stops the
-   descenders of one line touching the next in the chart cells and tables. */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Tamil script sits taller than Latin; extra leading stops the descenders of
+   one line touching the next in the chart cells and tables. */
 :lang(ta),
 .font-tamil {
-  line-height: 1.7;
+  line-height: 1.75;
+}
+
+/* Numbers in the degree column are compared against another program's output
+   digit by digit, so they line up in columns rather than being proportional. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

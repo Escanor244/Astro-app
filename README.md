@@ -248,7 +248,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full reasoning.
 ## Learning path
 
 You are learning Jyotish while building this, so `docs/` is a deliverable, not
-an afterthought. Start at [docs/00-orientation.md](docs/00-orientation.md).
+an afterthought. Start at [docs/00-orientation.md](docs/00-orientation.md), then
+read [docs/ayanamsa.md](docs/ayanamsa.md) — the four ayanamsa systems, what they
+are, and which to choose. It is the one setting where the wrong value produces a
+chart that looks entirely normal and is wrong throughout.
 
 Reference texts worth having alongside: B.V. Raman, *Hindu Predictive
 Astrology*; K.S. Krishnamurti, *Readers 1–6* (the primary KP source); and

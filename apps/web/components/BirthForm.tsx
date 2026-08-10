@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Meta, Place } from "@/lib/api";
+import { AyanamsaInfo } from "./AyanamsaInfo";
 import { PlaceSearch } from "./PlaceSearch";
 import type { Language } from "./SouthIndianChart";
 
@@ -119,9 +120,10 @@ export function BirthForm({ meta, value, onChange, onSubmit, busy, lang }: Props
       <div>
         <label
           htmlFor="ayanamsa"
-          className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+          className="flex items-center text-sm font-medium text-slate-700 dark:text-slate-300"
         >
-          Ayanamsa
+          Ayanamsa <span className="ml-1 text-slate-400">/ அயனாம்சம்</span>
+          <AyanamsaInfo />
         </label>
         <select
           id="ayanamsa"

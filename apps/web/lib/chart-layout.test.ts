@@ -3,6 +3,8 @@ import {
   BOARD,
   CELL,
   CELL_SIZE,
+  GRAHA_FONT,
+  GRAHA_FONT_CROWDED,
   ascLabelY,
   cellOrigin,
   houseOf,
@@ -131,9 +133,14 @@ describe("occupant placement", () => {
   });
 
   it("shrinks the type only when a cell is crowded", () => {
-    expect(occupantPositions(4)[0].fontSize).toBe(13);
-    expect(occupantPositions(6)[0].fontSize).toBe(13);
-    expect(occupantPositions(9)[0].fontSize).toBeLessThan(13);
+    // Referenced from the constants, not hardcoded: type size is a readability
+    // choice that should be tunable without a test edit. What must hold is that
+    // the *default* is used until a cell genuinely fills up — and the
+    // containment tests above already prove the crowded size still fits.
+    expect(occupantPositions(4)[0].fontSize).toBe(GRAHA_FONT);
+    expect(occupantPositions(6)[0].fontSize).toBe(GRAHA_FONT);
+    expect(occupantPositions(9)[0].fontSize).toBe(GRAHA_FONT_CROWDED);
+    expect(GRAHA_FONT_CROWDED).toBeLessThan(GRAHA_FONT);
   });
 
   it("returns nothing for an empty cell", () => {

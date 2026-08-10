@@ -131,8 +131,8 @@ export function SouthIndianChart({
             {/* Rasi name — fixed to this cell forever. */}
             <text
               x={x + 5}
-              y={y + 14}
-              className="fill-slate-500 text-[10px] dark:fill-slate-400"
+              y={y + 15}
+              className="fill-slate-600 text-[11px] dark:fill-slate-300"
             >
               {lang === "ta" ? rasis[rasi]?.ta : rasis[rasi]?.en}
             </text>
@@ -140,9 +140,9 @@ export function SouthIndianChart({
             {/* House number — rotates with the lagna. */}
             <text
               x={x + CELL_SIZE - 5}
-              y={y + 14}
+              y={y + 15}
               textAnchor="end"
-              className="fill-slate-400 text-[10px] font-medium dark:fill-slate-500"
+              className="fill-slate-500 text-[11px] font-semibold dark:fill-slate-400"
             >
               {house}
             </text>
@@ -151,7 +151,7 @@ export function SouthIndianChart({
               <text
                 x={x + 5}
                 y={y + ascLabelY()}
-                className="fill-amber-700 text-[9px] font-bold tracking-wide dark:fill-amber-500"
+                className="fill-amber-700 text-[10px] font-bold tracking-wide dark:fill-amber-400"
               >
                 {lang === "ta" ? "லக்னம்" : "ASC"}
               </text>

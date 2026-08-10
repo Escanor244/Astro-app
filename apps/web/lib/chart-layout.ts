@@ -45,10 +45,14 @@ export function cellOrigin(rasi: number): { x: number; y: number } {
 }
 
 /** Top of the occupant band: below the rasi name and house number. */
-const BAND_TOP = 30;
+const BAND_TOP = 28;
 /** Bottom margin, and the extra room the lagna cell needs for its ASC label. */
-const BAND_BOTTOM = 8;
-const ASC_LABEL_HEIGHT = 12;
+const BAND_BOTTOM = 6;
+const ASC_LABEL_HEIGHT = 13;
+
+/** Graha type size: comfortable by default, smaller only when a cell fills up. */
+export const GRAHA_FONT = 15;
+export const GRAHA_FONT_CROWDED = 11;
 
 export type Occupant = { x: number; y: number; fontSize: number };
 
@@ -74,12 +78,12 @@ export function occupantPositions(count: number, isLagna = false): Occupant[] {
 
   const perRow = count <= 4 ? 2 : 3;
   const rows = Math.ceil(count / perRow);
-  const fontSize = count > 6 ? 10 : 13;
+  const fontSize = count > 6 ? GRAHA_FONT_CROWDED : GRAHA_FONT;
 
   const bottom = CELL_SIZE - BAND_BOTTOM - (isLagna ? ASC_LABEL_HEIGHT : 0);
   const band = bottom - BAND_TOP;
   // Never exceed the natural pitch; shrink it only when the rows demand it.
-  const pitch = Math.min(fontSize + 6, band / rows);
+  const pitch = Math.min(fontSize + 4, band / rows);
   const colWidth = (CELL_SIZE - 12) / perRow;
 
   return Array.from({ length: count }, (_, i) => ({

@@ -5,6 +5,7 @@ import { ApiError, type Chart, type Meta, computeChart, fetchMeta } from "@/lib/
 import { BirthForm, type FormState } from "@/components/BirthForm";
 import { GrahaTable } from "@/components/GrahaTable";
 import { type Language, SouthIndianChart } from "@/components/SouthIndianChart";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const INITIAL: FormState = {
   name: "",
@@ -67,23 +68,31 @@ export default function Home() {
             Vedic chart calculation — sidereal, South Indian, Tamil-native.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Labels</span>
-          <div className="flex overflow-hidden rounded-md border border-slate-300 dark:border-slate-600">
-            {(["en", "ta"] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
-                className={`px-3 py-1 text-sm ${
-                  lang === l
-                    ? "bg-amber-600 text-white"
-                    : "bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                }`}
-              >
-                {l === "en" ? "English" : "தமிழ்"}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500 dark:text-slate-400">Labels</span>
+            <div
+              role="group"
+              aria-label="Label language"
+              className="flex overflow-hidden rounded-md border border-slate-300 dark:border-slate-600"
+            >
+              {(["en", "ta"] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  aria-pressed={lang === l}
+                  className={`px-3 py-1 text-sm transition ${
+                    lang === l
+                      ? "bg-amber-600 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {l === "en" ? "English" : "தமிழ்"}
+                </button>
+              ))}
+            </div>
           </div>
+          <ThemeToggle />
         </div>
       </header>
 

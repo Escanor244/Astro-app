@@ -57,6 +57,10 @@ shifts every cusp by nearly six arcminutes, which silently corrupts sub-lord
 results — and sub-lords are the entire point of KP. This is a common bug in
 consumer apps.
 
+**→ [ayanamsa.md](ayanamsa.md) is the full guide**: what each of the four
+systems is, how much the choice actually changes, and which to pick. Worth
+reading before you cast charts you intend to compare against anything else.
+
 There is a structural difference worth noticing: Lahiri, KP and Raman are
 **fixed-epoch** systems. Each pins a value at 1900 and adds accumulated
 precession, so they differ only by a constant. True Chitrapaksha is **dynamic** —

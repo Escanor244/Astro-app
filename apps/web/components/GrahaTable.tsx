@@ -26,7 +26,7 @@ function label(term: Term, lang: Language): string {
 export function GrahaTable({ chart, lang, onHover }: Props) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[34rem] text-sm">
+      <table className="w-full min-w-[34rem] text-base">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
             <th className="py-2 pr-3 font-medium">Graha</th>
@@ -43,7 +43,7 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
               {lang === "ta" ? "லக்னம்" : "Lagna"}
             </td>
             <td className="py-2 pr-3">{label(chart.lagna.rasi_name, lang)}</td>
-            <td className="py-2 pr-3 text-right font-mono text-xs">
+            <td className="tabular py-2.5 pr-3 text-right font-mono text-sm">
               {chart.lagna.formatted}
             </td>
             <td className="py-2 pr-3">
@@ -82,7 +82,7 @@ export function GrahaTable({ chart, lang, onHover }: Props) {
                 <td className="py-2 pr-3">
                   {label(g.position.rasi_name, lang)}
                 </td>
-                <td className="py-2 pr-3 text-right font-mono text-xs">
+                <td className="tabular py-2.5 pr-3 text-right font-mono text-sm">
                   {g.position.formatted}
                 </td>
                 <td className="py-2 pr-3">

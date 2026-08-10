@@ -102,8 +102,9 @@ one with `--fold 1`.
 Check these three before assuming anyone is wrong. All are differences of
 *convention*, not accuracy:
 
-1. **Ayanamsa.** We default to Lahiri. True Chitrapaksha differs by about 1′, and
-   KP by 5′49″. Compare like with like: `--ayanamsa kp`.
+1. **Ayanamsa.** We default to Lahiri. True Chitrapaksha differs by about 1′, KP
+   by 5′49″, and Raman by 1°26′. Compare like with like: `--ayanamsa kp`. See
+   [ayanamsa.md](ayanamsa.md) for which to use and why.
 2. **Mean vs true node.** We use the *mean* lunar node, as Vedic practice and KP
    both do. Software set to the true node puts Rahu and Ketu up to ~1.5° away.
 3. **Chart style.** Ours is South Indian: signs are fixed in the grid, houses
