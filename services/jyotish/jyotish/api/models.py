@@ -102,8 +102,12 @@ class ChartRequest(BaseModel):
 
     # Either a place id, or explicit coordinates.
     geonameid: int | None = Field(
-        default=None, description="Place from /api/places. Preferred."
+        default=None, ge=1, le=2**63 - 1,
+        description="Place from /api/places. Preferred.",
     )
+    # Bounded because it reaches SQLite, which rejects an integer outside the
+    # signed 64-bit range with an OverflowError rather than simply not matching
+    # -- a 500 for what is plainly bad input.
     latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
     longitude: float | None = Field(default=None, ge=-180.0, le=180.0)
     place_name: str | None = Field(
@@ -469,7 +473,7 @@ class RecordFields(BaseModel):
     timezone_name: str
     place_name: str = Field(default="", max_length=200)
     geonameid: int | None = Field(
-        default=None,
+        default=None, ge=1, le=2**63 - 1,
         description="Provenance only. The coordinates above are the source of "
                     "truth and are never re-resolved from this.",
     )

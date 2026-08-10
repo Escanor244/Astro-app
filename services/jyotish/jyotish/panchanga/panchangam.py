@@ -386,7 +386,20 @@ def compute(
 
     # A moment before today's sunrise still belongs to yesterday's Jyotish day,
     # so the windows have to be built on yesterday's sunrise/sunset pair.
-    if sun_rs.rising is not None and moment_utc < sun_rs.rising:
+    #
+    # The rising must genuinely belong to `local_day` before it can be used as
+    # that day's boundary. It always does now that the search is bounded to one
+    # day, but this used to search 26 hours: at the end of the midnight sun it
+    # would return a rising from the *following* day, making the test true for
+    # every moment of the day and annexing the whole of it to the previous
+    # vaara -- weekday a day behind, Tamil date repeated and then skipped. The
+    # guard is cheap and states the requirement rather than relying on the
+    # window length to imply it.
+    rising_day = (
+        None if sun_rs.rising is None
+        else sun_rs.rising.replace(tzinfo=UTC).astimezone(zone).date()
+    )
+    if rising_day == local_day and moment_utc < sun_rs.rising:
         local_day = local_day - timedelta(days=1)
         sun_rs = sun_rise_set(
             latitude, longitude, local_midnight_utc(local_day, zone)

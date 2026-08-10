@@ -123,6 +123,37 @@ def test_dates_come_back_in_the_birth_places_zone():
     assert first["start"] != first["start_utc"]
 
 
+def test_the_table_always_contains_the_period_the_running_panel_names():
+    """The two panels must never describe different centuries.
+
+    One cycle covers an ordinary lifetime, but not a pre-1923 birth and not a
+    date pushed past the table's end with the picker. When that happened the
+    Running panel named a lord whose only row in the table was 120 years away,
+    under an identical label, with nothing badged.
+    """
+    for at in ("2026-08-10", "2100-01-01", "2140-06-01"):
+        body = post("/api/dasha", at=at).json()
+        running = body["running"]
+        if not running:
+            continue
+        top = running[0]
+        matches = [
+            p for p in body["periods"]
+            if p["lords"] == top["lords"] and p["start"] == top["start"]
+        ]
+        assert len(matches) == 1, at
+        assert matches[0]["running"] is True, at
+    assert len(post("/api/dasha", at="2026-08-10").json()["periods"]) >= 9
+
+
+def test_an_absurd_geonameid_is_a_422_not_a_500():
+    """It reaches SQLite, which overflows rather than simply not matching."""
+    r = client.post("/api/chart", json={
+        "date": "1990-05-15", "time": "06:30", "geonameid": 2**70,
+    })
+    assert r.status_code == 422
+
+
 def test_a_date_before_the_sequence_returns_an_empty_chain_not_an_error():
     """Before the first mahadasha began — a real question with no answer."""
     body = post("/api/dasha", at="1900-01-01").json()
@@ -196,6 +227,39 @@ def test_panchangam_rejects_a_bad_time_with_a_readable_message():
 
 
 # --- CORS --------------------------------------------------------------------
+
+
+def test_a_500_still_carries_the_cors_header():
+    """Otherwise the careful error body reaches nobody.
+
+    Starlette runs ``@app.exception_handler(Exception)`` in ServerErrorMiddleware,
+    outside the whole user middleware stack, so a 500 raised there never passes
+    back through CORS. The browser then refuses to let the page read the body
+    and the client reports an opaque "cannot reach the engine" for what is
+    really a bug with a message attached. The catch-all is therefore a
+    middleware registered *inside* CORS, and this pins that arrangement.
+    """
+    from jyotish.api import service
+
+    def boom(_request):
+        raise RuntimeError("engine exploded")
+
+    original = service.compute_chart
+    service.compute_chart = boom
+    try:
+        r = client.post(
+            "/api/chart",
+            json=CHENNAI,
+            headers={"Origin": "http://localhost:3000"},
+        )
+    finally:
+        service.compute_chart = original
+
+    assert r.status_code == 500
+    assert r.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    # And the body is the structured message, not Starlette's text/plain default.
+    assert "RuntimeError" in r.json()["detail"]
+    assert "engine exploded" not in r.json()["detail"]   # no argument leakage
 
 
 def test_the_preflight_allows_the_new_endpoints():

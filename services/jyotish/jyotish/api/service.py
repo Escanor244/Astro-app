@@ -332,11 +332,24 @@ def compute_dasha(req: models.DashaRequest) -> models.DashaResponse:
 
     balance = vd.balance_at_birth(moon, year_length=req.year_length)
 
-    # One cycle at the top level: 120 years from a start that precedes the
-    # birth, so it spans any lifetime. `chain_at` generates two cycles
-    # internally, so a lookup past that horizon still resolves even though the
-    # table does not list it.
-    periods = vd.mahadashas(birth_utc, moon, year_length=req.year_length)[:9]
+    # The table must always contain the period `running` names, or the two
+    # panels describe different centuries. Nine rows is one full cycle and
+    # covers any ordinary lifetime, but "any lifetime" was the premise that
+    # failed: for a birth before about 1923, and for any chart once the date
+    # picker is pushed past the table's end, `at` lands in the *second* cycle.
+    # The Running panel then showed a correct chain while no row was badged,
+    # every row greyed as past, and clicking the lord it named opened that
+    # lord's first-cycle sub-periods -- dates 120 years from the ones just
+    # displayed, under an identical label.
+    #
+    # So: one cycle, extended if necessary to reach `at`. Extending rather than
+    # sliding keeps the person's early mahadashas on the table, which a window
+    # centred on `at` would have thrown away.
+    periods = vd.mahadashas(birth_utc, moon, year_length=req.year_length)
+    running_index = next(
+        (i for i, p in enumerate(periods) if p.contains(at)), 8
+    )
+    periods = periods[: max(8, running_index) + 1]
     parent: vd.Period | None = None
 
     for lord in req.path:

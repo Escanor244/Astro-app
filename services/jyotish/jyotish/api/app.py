@@ -56,6 +56,32 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Registered BEFORE the CORS middleware below, and the order is the whole point.
+# Starlette wraps the last-registered middleware outermost, so registering this
+# first puts CORS *outside* it -- which means the 500 body below passes back out
+# through CORS and gets its Access-Control-Allow-Origin header.
+#
+# The obvious spelling, an @app.exception_handler for Exception, does not work
+# for this. Starlette runs those in ServerErrorMiddleware, which sits outside
+# the entire user middleware stack, so its response never meets CORS at all.
+# The browser then refuses to let the page read the body and the carefully
+# written JSON reaches nobody: the client sees an opaque network failure and
+# reports "cannot reach the engine" for what is really a bug with a message
+# attached.
+@app.middleware("http")
+async def catch_unhandled(request: Request, call_next):
+    """Turn any unhandled exception into JSON the browser is allowed to read.
+
+    A backstop, not a substitute for validating at the model boundary --
+    anything a real request can reach should already be a 4xx before it arrives
+    here.
+    """
+    try:
+        return await call_next(request)
+    except Exception as exc:  # noqa: BLE001 -- this is the backstop
+        return _server_error(exc)
+
+
 # The PWA is served from a different origin, so every non-simple request is
 # preflighted. This list must cover every method the API actually exposes:
 # PUT and DELETE were missing when the library was added, and the browser
@@ -77,19 +103,9 @@ app.add_middleware(
 )
 
 
-@app.exception_handler(Exception)
-async def unhandled(_request: Request, exc: Exception) -> JSONResponse:
-    """Turn any unhandled exception into structured JSON.
-
-    Without this, FastAPI returns a bare ``text/plain`` "Internal Server Error",
-    which the web client cannot parse into anything more useful than
-    "Request failed (500)". The message deliberately names the exception type
-    but not its arguments, which can carry absolute paths.
-
-    This is a backstop, not a substitute for validating at the model boundary --
-    every case reachable by a real request should already be a 4xx before it
-    gets here.
-    """
+def _server_error(exc: Exception) -> JSONResponse:
+    """The body a 500 carries. Names the exception type but not its arguments,
+    which can carry absolute paths."""
     log.exception("unhandled error", exc_info=exc)
     return JSONResponse(
         status_code=500,
