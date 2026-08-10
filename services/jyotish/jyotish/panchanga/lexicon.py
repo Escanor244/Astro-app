@@ -198,7 +198,7 @@ def karana_index(slot: int) -> int:
 # Rahu kalam, yamagandam and kuligai are each one eighth of the interval from
 # sunrise to sunset, selected by weekday. The familiar "1.5 hours" is only true
 # on a day with exactly twelve hours of light -- in Chennai the eighth runs from
-# about 85 to 95 minutes across the year.
+# about 85 to 97 minutes across the year.
 #
 # Indices below are 0-based into the eight daylight parts, and the clock times in
 # the comments assume a 06:00 sunrise and 18:00 sunset, which is how these are

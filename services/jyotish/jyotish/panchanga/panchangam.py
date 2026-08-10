@@ -166,7 +166,7 @@ def _eighths(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
     periods are all defined as one-eighth of the day, which is where the
     familiar 1.5-hour figure comes from -- it is only 1.5 hours on a day with
     exactly twelve hours of light. In Chennai the daylight eighth runs from about
-    85 to 95 minutes across the year, and in London from 45 to 120.
+    85 to 97 minutes across the year, and in London from about 59 to 125.
     """
     span = (end - start) / 8
     parts = [(start + span * i, start + span * (i + 1)) for i in range(8)]
@@ -441,7 +441,7 @@ def compute(
     # Kataka at 23:39 the night before, while the running day was still the last
     # of Aani (correctly, Aani 32; that month genuinely has 32 days in 2026).
     # Reading it at *sunrise* instead lost Thai 1 of 2026 altogether: Makara
-    # sankranti fell at 15:13 on 14 January, before sunset, so the sunset rule
+    # sankranti fell at 15:07 on 14 January, before sunset, so the sunset rule
     # makes that whole day Thai 1 even though the Sun was still in Dhanus when
     # it dawned.
     calendar_ref = next_sunrise if next_sunrise is not None else moment_utc

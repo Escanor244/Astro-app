@@ -129,8 +129,8 @@ names:
 
 Those clock times assume a 06:00 sunrise and 18:00 sunset, which is how they are
 always taught. **The real windows are not 90 minutes.** An eighth of the daylight
-in Chennai runs from about 85 to 95 minutes across the year, and in London from
-45 to 120. The engine computes the actual interval.
+in Chennai runs from about 85 to 97 minutes across the year, and in London from
+about 59 to 125. The engine computes the actual interval.
 
 Yamagandam and kuligai are not arbitrary tables — Brihat Parashara Hora gives a
 rule: the first eighth belongs to the weekday's lord and the rest follow in
@@ -232,7 +232,7 @@ turn rather than the tropical one.
 Note that the ayanam and the month turn on **different rules**, so they need not
 change on the same day. The month follows the sunset rule above; the ayanam
 follows the Sun's rasi at daybreak. On 14 January 2026 the two disagree — Makara
-sankranti fell at 15:13, before sunset, so that whole day is **தை 1** while the
+sankranti fell at 15:07, before sunset, so that whole day is **தை 1** while the
 ayanam was still **தட்சிணாயனம்** because the Sun was in Dhanus when the day
 dawned. That is what Drik Panchang prints for the day, and it is not a bug in
 either of us.

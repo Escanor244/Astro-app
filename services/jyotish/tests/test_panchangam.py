@@ -308,7 +308,7 @@ def test_the_tamil_date_never_skips_or_repeats_across_a_sankranti():
     """Walks the Thai and Aadi 2026 boundaries day by day.
 
     These two are the awkward cases in opposite directions, and each produced a
-    real defect. Makara sankranti fell at 15:13 on 14 January -- between sunrise
+    real defect. Makara sankranti fell at 15:07 on 14 January -- between sunrise
     and sunset -- so by the sunset rule that whole day is **Thai 1**, even though
     the Sun was still in Dhanus when it dawned. Karka sankranti fell at 23:39 on
     16 July, after sunset, so 17 July is Aadi 1 and 16 July is the 32nd and last
@@ -443,6 +443,45 @@ def test_the_midnight_sun_is_reported_rather_than_invented():
     assert rs.rising is None and rs.setting is None
     assert not rs.has_daylight
     assert rs.day_length is None
+
+
+def test_a_reported_moonrise_always_belongs_to_the_day_asked_about():
+    """The Moon skips a calendar day about once a month, Chennai included.
+
+    A 26-hour search window let those days silently borrow *tomorrow's*
+    moonrise and print it as today's — 13 days a year at Chennai. Asserted as a
+    property over a full lunation rather than against one hand-picked date, and
+    a day with no moonrise is a real answer an almanac gives.
+    """
+    zone = IST
+    skipped = 0
+    for offset in range(30):
+        day = date(2026, 8, 1) + timedelta(days=offset)
+        rs = dl.moon_rise_set(*CHENNAI[:2], dl.local_midnight_utc(day, zone))
+        if rs.rising is None:
+            skipped += 1
+            continue
+        local = rs.rising.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        assert local == day, f"{day}: moonrise reported from {local}"
+    # Over a lunation the Moon must skip at least one day, or the bound is not
+    # actually being applied and the test proves nothing.
+    assert skipped >= 1
+
+
+def test_the_midnight_sun_is_not_mistaken_for_polar_night():
+    """Just inside the Arctic Circle, tested against the right horizon.
+
+    At midsummer the Sun's centre dips a few tenths of a degree below the
+    geometric horizon at local midnight while staying above the -0.8333 horizon
+    that actually defines sunset. Comparing altitude against zero therefore
+    called the midnight sun a polar night.
+    """
+    for latitude in (66.6, 67.0, 68.0, 69.6):
+        rs = dl.sun_rise_set(
+            latitude, 18.9553,
+            dl.local_midnight_utc(date(2026, 6, 21), ZoneInfo("Europe/Oslo")),
+        )
+        assert rs.condition == "always_up", latitude
 
 
 def test_the_polar_night_is_reported_too():

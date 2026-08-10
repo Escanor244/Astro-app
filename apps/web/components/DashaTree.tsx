@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   type ChartRequest,
@@ -52,22 +52,35 @@ export function DashaTree({ request, lang }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Every request carries a sequence number and only the newest may write.
+  // Without this a slow reply can land after a newer one and paint a different
+  // chart's dasha under the chart on screen — the two requests differ only in
+  // the birth in the body, so nothing about the result looks wrong. Opening two
+  // library records in quick succession is enough to trigger it.
+  const latest = useRef(0);
+
   const load = useCallback(
     async (nextPath: number[], nextAt: string) => {
       if (!request) return;
+      const ticket = ++latest.current;
       setBusy(true);
       setError(null);
       try {
-        setData(
-          await computeDasha({ ...request, path: nextPath, at: nextAt || null }),
-        );
+        const next = await computeDasha({
+          ...request,
+          path: nextPath,
+          at: nextAt || null,
+        });
+        if (ticket !== latest.current) return;
+        setData(next);
         setPath(nextPath);
       } catch (e) {
+        if (ticket !== latest.current) return;
         setError(
           e instanceof ApiError ? e.message : "Could not compute the dasha.",
         );
       } finally {
-        setBusy(false);
+        if (ticket === latest.current) setBusy(false);
       }
     },
     [request],
@@ -254,11 +267,25 @@ export function DashaTree({ request, lang }: Props) {
                         </span>
                       )}
                     </td>
+                    {/* Sookshma runs for hours and prana for minutes, so at
+                        those levels a date alone renders every row as
+                        "10 Nov 1989 → 10 Nov 1989" — the same day twice, with
+                        the actual period invisible. */}
                     <td className="tabular py-2 pr-3 font-mono text-sm">
                       {formatPeriodDate(p.start)}
+                      {p.level >= 4 && (
+                        <span className="ml-1 text-slate-500">
+                          {formatPeriodTime(p.start)}
+                        </span>
+                      )}
                     </td>
                     <td className="tabular py-2 pr-3 font-mono text-sm">
                       {formatPeriodDate(p.end)}
+                      {p.level >= 4 && (
+                        <span className="ml-1 text-slate-500">
+                          {formatPeriodTime(p.end)}
+                        </span>
+                      )}
                     </td>
                     <td className="tabular py-2 pr-3 text-right font-mono text-sm">
                       {formatDuration(p.days)}

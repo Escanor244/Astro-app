@@ -133,7 +133,7 @@ With the venv activated (see [Quick start](#quick-start)):
 python -m pytest tests\ -q
 ```
 
-621 tests, about 15 seconds, zero skips. These are not smoke tests — they compare
+647 tests, about 25 seconds, zero skips. These are not smoke tests — they compare
 every graha longitude, the lagna, and every nakshatra pada against an independent
 Swiss Ephemeris oracle across 23 birth charts, cross-check all sixteen divisional
 charts *and* the dasha sub-period split against a second implementation, verify
@@ -166,7 +166,7 @@ by tests, which are never distributed.
 
 ## How accurate is it, really?
 
-Measured against the oracle across 20 charts spanning 1899–2018:
+Measured against the oracle across 23 charts spanning 1899–2018:
 
 | Quantity | Worst deviation |
 |---|---|

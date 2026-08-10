@@ -28,7 +28,7 @@ cd services\jyotish && python -m pytest tests\ -q
 cd apps\web && npm test && npm run build
 ```
 
-**621 Python tests, 69 TypeScript tests, zero skips.**
+**647 Python tests, 69 TypeScript tests, zero skips.**
 
 Four deserve naming, because they cover things a green suite would otherwise
 hide:

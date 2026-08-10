@@ -125,9 +125,18 @@ def print_dasha(birth, chart, at_text: str | None, year_length: str, lang: str) 
             at_local = datetime.fromisoformat(at_text)
         except ValueError:
             sys.exit(f"\n--at must be YYYY-MM-DD or an ISO datetime, not {at_text!r}.\n")
+        # A bare --at is birth-place local time, matching how the dates print.
+        at_local = at_local.replace(tzinfo=zone)
     else:
-        at_local = datetime.now()
-    at = at_local.replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
+        # "Now" is an instant, not a wall-clock reading. Taking datetime.now()
+        # and stamping it with the *birth place's* zone reinterprets the
+        # operator's clock as the birth place's, displacing the lookup by the
+        # difference between the two -- 4.5 hours for a Chennai astrologer
+        # casting a London chart, which is enough to name the wrong prana a
+        # fifth of the time. api/service.py has always done this correctly; the
+        # CLI did not, so the two front doors disagreed about "now".
+        at_local = datetime.now(zone)
+    at = at_local.astimezone(timezone.utc).replace(tzinfo=None)
 
     balance = vd.balance_at_birth(moon, year_length=year_length)
     star = NAKSHATRAS[balance.nakshatra]

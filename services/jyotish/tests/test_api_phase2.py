@@ -123,9 +123,23 @@ def test_dates_come_back_in_the_birth_places_zone():
     assert first["start"] != first["start_utc"]
 
 
-def test_a_date_outside_the_cycle_returns_an_empty_chain_not_an_error():
-    body = post("/api/dasha", at="1800-01-01").json()
+def test_a_date_before_the_sequence_returns_an_empty_chain_not_an_error():
+    """Before the first mahadasha began — a real question with no answer."""
+    body = post("/api/dasha", at="1900-01-01").json()
     assert body["running"] == []
+    assert len(body["periods"]) == 9   # the table is still there
+
+
+def test_an_at_outside_the_ephemeris_is_a_422_not_a_500():
+    """Year 9999 parses fine and then overflows deep in the period arithmetic.
+
+    A parseable-but-absurd value has to be refused at the boundary, where the
+    message can name the field, rather than surfacing as a bare 500.
+    """
+    for absurd in ("9999-01-01", "1200-06-15"):
+        r = post("/api/dasha", at=absurd)
+        assert r.status_code == 422, absurd
+        assert "ephemeris" in r.json()["detail"]
 
 
 # --- panchangam --------------------------------------------------------------

@@ -278,6 +278,18 @@ def _parse_at(text: str | None, zone: ZoneInfo) -> datetime:
                 f"Cannot read `at` value {text!r}. Use YYYY-MM-DD, or a full "
                 "ISO datetime such as 2026-08-10T14:30:00."
             ) from None
+
+        # A parseable but absurd year still has to be refused here. Year 9999
+        # parses fine and then overflows deep inside the period arithmetic,
+        # which surfaced as a bare 500 rather than a message naming the field.
+        from ..core.ephemeris import covered_years
+
+        first, last = covered_years()
+        if not first <= local.year <= last:
+            raise ValueError(
+                f"`at` is {local.year}, outside the range this ephemeris covers "
+                f"({first}-{last})."
+            )
         if local.tzinfo is None:
             local = local.replace(tzinfo=zone)
     return local.astimezone(timezone.utc).replace(tzinfo=None)

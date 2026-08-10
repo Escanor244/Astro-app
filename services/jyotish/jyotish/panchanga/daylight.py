@@ -96,14 +96,22 @@ def rise_and_set(
     latitude: float,
     longitude: float,
     window_start: datetime,
-    window_hours: float = 26.0,
+    window_hours: float = 24.0,
 ) -> RiseSet:
-    """First rising and the setting that follows it, searching from an instant.
+    """First rising within the day, and the setting that follows it.
 
-    ``window_start`` is a naive UTC datetime. The window runs a little over a day
-    because a rising and the setting after it can straddle more than 24 hours at
-    high latitude, and because a search that begins just after one sunrise must
-    still find the next.
+    ``window_start`` is a naive UTC datetime, normally local midnight.
+
+    The rising search is bounded to **one day**, not the 26 hours it used to
+    be. That extra two hours meant the Moon, which rises roughly 50 minutes
+    later each day and so skips a calendar day about once a month, silently
+    borrowed the *next* day's moonrise — 13 days a year at Chennai, printed as
+    if it were today's. A day on which the Moon does not rise is a real thing an
+    almanac states, not a hole to fill from tomorrow.
+
+    The *setting* search still runs longer, from the rising itself, because a
+    rising and the setting after it genuinely can straddle more than 24 hours at
+    high latitude.
     """
     ts = get_timescale()
     t0 = civil_to_time(window_start)
@@ -120,27 +128,35 @@ def rise_and_set(
     # to the *previous* rising and the pair straddles a night instead of a day.
     if rising is not None:
         s0 = civil_to_time(rising)
-        s1 = ts.tt_jd(s0.tt + window_hours / 24.0)
+        s1 = ts.tt_jd(s0.tt + 26.0 / 24.0)
     else:
         s0, s1 = t0, t1
 
     set_times, set_ok = almanac.find_settings(observer, target, s0, s1)
     setting = _first(set_times, set_ok)
 
-    # Which polar case this is follows from *which* search came up empty, and
-    # that is more reliable than sampling the altitude at one instant. A sunrise
-    # with no sunset after it is the last rising before the midnight sun; a
-    # sunset with no rising before it is the first day of the polar night.
     if rising is not None and setting is not None:
-        condition = "normal"
-    elif rising is not None:
-        condition = "always_up"
-    elif setting is not None:
-        condition = "always_down"
-    else:
-        alt = observer.at(t0).observe(target).apparent().altaz()[0].degrees
-        condition = "always_up" if alt > 0 else "always_down"
+        return RiseSet(rising=rising, setting=setting, condition="normal")
 
+    # Otherwise ask the sky, and ask it against the SAME horizon the searches
+    # used. Two earlier versions of this got it wrong in different ways.
+    #
+    # Inferring the case from *which* search came up empty is unsound: the Moon
+    # simply fails to rise on about one calendar day in twenty-eight, and that
+    # produced "always_down" for a Moon that had been up all evening and set.
+    #
+    # Comparing altitude against zero is also wrong, because zero is the
+    # geometric horizon and nothing here uses it. Just inside the Arctic Circle
+    # at midsummer the Sun's centre sits a few tenths of a degree below zero at
+    # local midnight while still above the -0.8333 horizon that defines sunset —
+    # so the midnight sun was reported as polar night.
+    horizon = almanac.build_horizon_function(target)
+    altitude, _azimuth, distance = (
+        observer.at(t0).observe(target).apparent().altaz()
+    )
+    condition = (
+        "always_up" if altitude.radians > horizon(distance) else "always_down"
+    )
     return RiseSet(rising=rising, setting=setting, condition=condition)
 
 

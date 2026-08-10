@@ -40,7 +40,7 @@ npm run build
 `npm run build` counts as a test: `next dev` tolerates type errors that a
 production build rejects.
 
-**621 Python tests (~15s) and 69 TypeScript tests (<1s).** Every phase's automated tests live in the same
+**647 Python tests (~15s) and 69 TypeScript tests (<1s).** Every phase's automated tests live in the same
 suite and all of them must pass — a later phase is never allowed to break an
 earlier one. The Phase 0 accuracy gate in particular is load-bearing: if those
 fail, nothing built on top of them can be trusted.
